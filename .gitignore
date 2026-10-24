@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Local configuration
+local.properties
+*.keystore
+*.jks
+.env
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+release/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Test/report output
+report/
+reports/
