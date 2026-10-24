@@ -186,8 +186,8 @@ sufficient per the rule "prefer pure functions and immutable state".
 * **Kubernetes client library?** Deferred to the cluster-connection spec
   (03). Recommendation: `io.kubernetes:client-java` (currently 27.0.0)
   over Fabric8 — Fabric8 assumes Java 11+ APIs and JVM-only SSL/TLS
-  assumptions that historically break under Android. *Status: awaiting
-  human confirmation.*
+  assumptions that historically break under Android. *Answered 2026-10-23:
+  human confirmed client-java over Fabric8.*
 * **`hiltViewModel()` under Nav3 entry-scoped stores:** the standard entry
   path is `androidx.hilt:hilt-navigation-compose`'s `hiltViewModel()`
   reading `LocalViewModelStoreOwner`, which the Nav3 ViewModel-store
