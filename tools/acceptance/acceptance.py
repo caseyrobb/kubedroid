@@ -1,0 +1,745 @@
+#!/usr/bin/env python3
+"""Spec 03 emulator acceptance driver (devbox only).
+
+Boots the API 37 headless emulator, runs a TLS API stub with the throwaway
+CA, then drives the app over adb to exercise the acceptance criteria that
+unit tests cannot cover end-to-end:
+
+  * paste-import token kubeconfig (CA-pinned TLS) -> probe hits the stub
+    with `Authorization: Bearer <token>` (spec 03 "green dot")
+  * kill + relaunch -> connection restored from Keystore/DataStore and a
+    re-probe (refresh) reaches the stub again
+  * delete -> row gone, blob dir empty
+  * exec-plugin kubeconfig -> specific error, nothing persisted, no traffic
+
+Prints STEP lines and a final ACCEPTANCE_PASS / ACCEPTANCE_FAIL.
+"""
+import base64
+import os
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+
+ANDROID_HOME = os.path.expanduser("~/Android/Sdk")
+ADB = f"{ANDROID_HOME}/platform-tools/adb"
+EMULATOR = f"{ANDROID_HOME}/emulator/emulator"
+SDKMANAGER = f"{ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+AVDMANAGER = f"{ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager"
+APK = os.path.expanduser("~/kubedroid/build/outputs/apk/debug/kubedroid-debug.apk")
+HERE = os.path.dirname(os.path.abspath(__file__))
+SERVER = os.path.join(HERE, "accept-server.py")
+
+WORK = os.path.expanduser("~/kubedroid-accept")
+LOG = "/tmp/kubedroid-accept-server.log"
+PORT = 6443
+PKG = "com.neozeon.kubedroid.debug"
+ACTIVITY = "com.neozeon.kubedroid.MainActivity"
+# Value must avoid dictionary-word+hyphen combos (e.g. "acceptance-test"):
+# the emulator's LatinIME hardware-key composing region deterministically
+# drops such runs before Enter commits them (probe_typing3.py evidence).
+# disable_ime() clears the secure IME settings before typing (pm-disable of
+# LatinIME fails silently); `input text` chunks are additionally verified
+# line-by-line and the field is wiped+retyped on a corrupt retry.
+TOKEN = "0f3a9c7e2b8d41e6"
+# The app reaches the stub via guest loopback + `adb reverse tcp:PORT`
+# (re-established after every emulator boot). Do NOT switch this back to
+# 10.0.2.2: on the API-37 emulator the slirp path silently drops SYNs from
+# app UIDs (verified: shell UID connects, app UID times out with zero
+# packets leaving the guest, stub provably alive — matrix_net.py evidence).
+# The server cert SANs already include IP:127.0.0.1.
+SERVER_URL = f"https://127.0.0.1:{PORT}"
+
+PROFILES = {
+    "37": ("kv37", "emulator-5558", "system-images;android-37.0;default;x86_64"),
+    "26": ("kv26", "emulator-5556", "system-images;android-26;google_apis;x86_64"),
+}
+API = sys.argv[1] if len(sys.argv) > 1 else "37"
+AVD, SERIAL, IMAGE = PROFILES[API]
+
+failures = []
+
+
+def step(name, ok, detail=""):
+    print(f"STEP {'PASS' if ok else 'FAIL'} {name} {detail}", flush=True)
+    if not ok:
+        failures.append(name)
+    return ok
+
+
+def sh(cmd, **kw):
+    return subprocess.run(cmd, capture_output=True, text=True, **kw)
+
+
+def adb(*args, **kw):
+    return sh([ADB, "-s", SERIAL, *args], **kw)
+
+
+# ---------------------------------------------------------------- fixtures
+def make_certs():
+    os.makedirs(WORK, exist_ok=True)
+    ca_key, ca_crt = f"{WORK}/ca-key.pem", f"{WORK}/ca-cert.pem"
+    srv_key, srv_crt = f"{WORK}/server-key.pem", f"{WORK}/server-cert.pem"
+    if not os.path.exists(srv_crt):
+        # EC certs keep the base64 CA blob small — the uiautomator
+        # accessibility text caps around ~1.8k chars and a 2048-bit RSA
+        # cert blows past it, hiding the tail of the typed kubeconfig.
+        sh(["openssl", "ecparam", "-name", "prime256v1", "-genkey",
+            "-noout", "-out", ca_key])
+        sh(["openssl", "req", "-x509", "-new", "-key", ca_key, "-days", "2",
+            "-out", ca_crt, "-subj", "/CN=kubedroid-accept-ca"])
+        sh(["openssl", "ecparam", "-name", "prime256v1", "-genkey",
+            "-noout", "-out", srv_key])
+        sh(["openssl", "req", "-new", "-key", srv_key,
+            "-out", f"{WORK}/server.csr", "-subj", "/CN=10.0.2.2"])
+        with open(f"{WORK}/san.ext", "w") as f:
+            f.write("subjectAltName=IP:10.0.2.2,IP:127.0.0.1\n")
+        sh(["openssl", "x509", "-req", "-in", f"{WORK}/server.csr",
+            "-CA", ca_crt, "-CAkey", ca_key, "-CAcreateserial",
+            "-out", srv_crt, "-days", "2", "-extfile", f"{WORK}/san.ext"])
+    b64 = base64.b64encode(open(ca_crt, "rb").read()).decode()
+    return ca_key, ca_crt, srv_key, srv_crt, b64
+
+
+def kubeconfig(ca_b64, with_exec=False):
+    user = (
+        "users:\n"
+        "- name: u1\n"
+        "  user:\n"
+        "    exec:\n"
+        "      command: kubelogin\n"
+        "      args:\n"
+        "      - login\n"
+    ) if with_exec else (
+        "users:\n"
+        "- name: u1\n"
+        "  user:\n"
+        f"    token: {TOKEN}\n"
+    )
+    return (
+        "apiVersion: v1\n"
+        "kind: Config\n"
+        "current-context: accept-east\n"
+        "clusters:\n"
+        "- name: c1\n"
+        "  cluster:\n"
+        f"    server: {SERVER_URL}\n"
+        f"    certificate-authority-data: {ca_b64}\n"
+        "contexts:\n"
+        "- name: accept-east\n"
+        "  context:\n"
+        "    cluster: c1\n"
+        "    user: u1\n"
+        + user
+    )
+
+
+def type_text(text):
+    """input text via adb; spaces must arrive as %s (device-shell safe).
+
+    Small 20-char chunks: the API-26 emulator's input dispatcher drops
+    characters from large injections even with no IME bound (observed
+    'contexts:'→'content:'); small synchronous chunks land reliably.
+    (Note: `input` parses options only BEFORE the event command — an
+    `-d` written after `text` becomes literal typed text.)
+    """
+    for i in range(0, len(text), 20):
+        adb("shell", "input", "text", text[i:i + 20].replace(" ", "%s"))
+        time.sleep(0.08)
+
+
+def find_edit_nodes(r):
+    return [
+        n for n in r.iter("node")
+        if (n.get("class") or n.get("className") or "").endswith("EditText")
+        or (n.get("text") or "").startswith("kubeconfig (YAML)")
+    ]
+
+
+def disable_ime():
+    """No soft keyboard: hardware keyevents go straight to the focused
+    view. LatinIME's composing region drops/corrupts long technical runs
+    (API 37 drops 'acceptance-test-token' style values; API 26 turns
+    'contexts:' into 't:'). Writing the string 'null' into
+    default_input_method does NOT disable the IME — the system falls back
+    to the default — so `ime disable` the real component and DELETE the
+    settings keys, then verify the setting is truly absent."""
+    ime = adb("shell", "settings", "get", "secure",
+              "default_input_method").stdout.strip()
+    if "/" in ime:
+        adb("shell", "ime", "disable", ime)
+    # also the plain-AOSP component (image flavor dependent)
+    adb("shell", "ime", "disable", "com.android.inputmethod.latin/.LatinIME")
+    adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard",
+        "0")
+    for _ in range(3):
+        r = adb("shell", "ime", "list", "-s")
+        ids = [ln.strip() for ln in (r.stdout or "").splitlines() if "/" in ln]
+        if not ids:
+            break
+        for ime_id in ids:
+            adb("shell", "ime", "disable", ime_id)
+    # `ime disable` is NOT enough on the API-26 google_apis image: IMMS
+    # still binds the system-default IME and its composing/autocorrect
+    # region rewrites injected text on Enter-commit (observed
+    # 'kind:'→'kindly:', 'https://'→'have://'). Package-disable the IME
+    # packages themselves — IMMS cannot bind a disabled package.
+    r = adb("shell", "ime", "list", "-a", "-s")
+    pkgs = {ln.split("/")[0] for ln in (r.stdout or "").splitlines() if "/"}
+    pkgs |= {"com.google.android.inputmethod.latin",
+             "com.android.inputmethod.latin",
+             "com.google.android.googlequicksearchbox"}
+    for pkg in sorted(pkgs):
+        adb("shell", "pm", "disable-user", "--user", "0", pkg)
+    for key in ("default_input_method", "enabled_input_methods"):
+        adb("shell", "settings", "delete", "secure", key)
+    r = adb("shell", "ime", "list", "-s")
+    remaining = [ln.strip() for ln in (r.stdout or "").splitlines() if "/" in ln]
+    # On API 26 the IME resolver repopulates settings with fallbacks even
+    # for disabled components — an empty enabled list is the real proof.
+    step("ime-disabled", not remaining, f"(remaining={remaining!r})")
+
+
+def _clear_field(probe):
+    """Wipe the focused field (KEYCODE_CLEAR, else batched DELs)."""
+    adb("shell", "input", "keyevent", "28")  # KEYCODE_CLEAR
+    time.sleep(0.3)
+    c = probe()
+    if c in ("", None):
+        return
+    adb("shell", "input", "keyevent", "123")  # MOVE_END
+    n = len(c) + 3
+    while n > 0:
+        adb("shell", "input", "keyevent", *["67"] * min(n, 150))
+        n -= 150
+    time.sleep(0.5)
+
+
+def type_multiline(verify_probe, text):
+    """Type YAML line-by-line; after each line verify it landed, retry once.
+
+    adb `input text` is fire-and-forget and occasionally drops commands,
+    so every line is verified against the live UI (verify_probe returns
+    the current focused-field text). A retry WIPEs and retypes everything
+    so far: re-typing only the failed line leaves IME-corrupt garbage
+    (e.g. 'I:') in the YAML, which silently breaks parsing.
+    """
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        for attempt in (1, 2, 3):
+            if attempt >= 2:
+                print(f"  retry line (attempt {attempt}): {line!r}", flush=True)
+                _clear_field(verify_probe)
+                for prev in lines[:i]:
+                    if prev:
+                        type_text(prev)
+                    adb("shell", "input", "keyevent", "66")
+                    time.sleep(0.5)
+            if line:
+                type_text(line)
+            adb("shell", "input", "keyevent", "66")  # Enter
+            time.sleep(1.0)
+            content = verify_probe()
+            # uiautomator truncates node text near ~1.8k chars; beyond that
+            # the tail is invisible and a retry would duplicate content.
+            # None = dump flaked (indeterminate): trust the type, never retype.
+            if (not line or content is None or len(content) >= 1700
+                    or line.strip() in content):
+                break
+
+    # Final whole-content pass: per-line retries give up silently, and on
+    # API-26 dropped lines left the parser rejecting a "complete" config
+    # (Import stayed disabled with zero dumps lying). Verify every line is
+    # present; if any are missing, wipe and retype the entire text once.
+    expected = [l.strip() for l in lines if l.strip()]
+    def strict_probe():
+        # like verify_probe but refuses to flake away the completeness check
+        for _ in range(3):
+            try:
+                r = ui_dump(retries=8)
+            except RuntimeError:
+                time.sleep(1)
+                continue
+            for n in r.iter("node"):
+                if (n.get("class") or n.get("className") or "").endswith("EditText"):
+                    return n.get("text") or ""
+        return None
+
+    for final_pass in (1, 2, 3):
+        content = strict_probe()
+        if content is None or len(content) >= 1700:
+            break  # indeterminate or tail-truncated: trust per-line work
+        missing = [l for l in expected if l not in content]
+        if not missing:
+            break
+        ctx = []
+        for l in missing[:3]:
+            i = content.find(l[:6])
+            if i < 0:
+                i = content.find(l[:4])
+            if i >= 0:
+                ctx.append(content[max(0, i - 40):i + 60])
+        print(f"  FINAL PASS {final_pass}: missing {missing!r} "
+              f"near={ctx!r}", flush=True)
+        _clear_field(verify_probe)
+        for l in lines:
+            if l:
+                type_text(l)
+            adb("shell", "input", "keyevent", "66")
+            time.sleep(0.8)
+
+
+def ui_dump(retries=6):
+    """Fresh uiautomator tree.
+
+    `uiautomator dump` silently fails (window not idle) and leaves the
+    previous /sdcard/ui.xml in place — reading it would return a stale
+    tree. Delete the target first and retry until a real dump lands.
+    """
+    last = "unknown"
+    for _ in range(retries):
+        adb("shell", "rm", "-f", "/sdcard/ui.xml")
+        r = adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
+        blob = (r.stdout or "") + (r.stderr or "")
+        if "ERROR" in blob or "could not get idle" in blob:
+            last = blob.strip()[:80]
+            time.sleep(0.7)
+            continue
+        out = adb("shell", "cat", "/sdcard/ui.xml").stdout
+        if "<hierarchy" not in out:
+            last = "empty dump"
+            time.sleep(0.7)
+            continue
+        try:
+            return ET.fromstring(
+                out[out.index("<hierarchy"):out.rindex("</hierarchy>") + 12])
+        except ET.ParseError as exc:
+            last = str(exc)[:80]
+            time.sleep(0.7)
+    raise RuntimeError(f"uiautomator dump failed after {retries}: {last}")
+
+
+def ui_dump_tree():
+    """ui_dump that degrades to an empty tree instead of raising.
+
+    Call sites already cope with no matches (tap_where/find_nodes return
+    nothing useful), which keeps flaky-dump retries from crashing the run.
+    """
+    try:
+        return ui_dump()
+    except RuntimeError:
+        return ET.fromstring("<hierarchy/>")
+
+
+def find_nodes(root, **attrs):
+    # text comparisons use strip(): uiautomator on some API levels reports
+    # node text with surrounding whitespace, silently breaking exact match
+    def match(n, k, v):
+        got = n.get(k)
+        return (got or "").strip() == v if k == "text" else got == v
+    return [n for n in root.iter("node")
+            if all(match(n, k, v) for k, v in attrs.items())]
+
+
+def center(node):
+    b = node.get("bounds")  # [x1,y1][x2,y2]
+    import re
+    x1, y1, x2, y2 = map(int, re.findall(r"-?\d+", b))
+    return (x1 + x2) // 2, (y1 + y2) // 2
+
+
+def tap_where(root, **attrs):
+    nodes = find_nodes(root, **attrs)
+    if not nodes:
+        return False
+    x, y = center(nodes[0])
+    adb("shell", "input", "tap", str(x), str(y))
+    return True
+
+
+def wait_node(**attrs):
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        try:
+            root = ui_dump_tree()
+            nodes = find_nodes(root, **attrs)
+            if nodes:
+                return root, nodes[0]
+        except Exception:
+            pass
+        time.sleep(1)
+    return None, None
+
+
+def log_count(pattern):
+    try:
+        with open(LOG) as f:
+            return sum(1 for line in f if pattern in line)
+    except FileNotFoundError:
+        return 0
+
+
+def _dump_debug(root):
+    try:
+        if root is None:
+            return "(no dump)"
+        texts = [(n.get("text") or "").strip() for n in root.iter("node")]
+        texts = [t for t in texts if t][:40]
+        with open("/tmp/accept-dump.xml", "w") as f:
+            ET.ElementTree(root).write(f, encoding="unicode")
+        return f"nodes={texts}"
+    except Exception as e:  # diagnostics must never mask the real failure
+        return f"(debug failed: {e})"
+
+
+def logcat_errors():
+    """Recent fatal/exception lines — self-diagnosis for save-path failures."""
+    out, other = [], []
+    for buf in ("crash", "main"):
+        r = adb("shell", "logcat", "-d", "-b", buf, "-v", "brief")
+        for line in (r.stdout or "").splitlines():
+            s = line.strip()
+            if ("uiautomator" in s or "RuntimeInit" in s
+                    or "memtrack" in s or "SurfaceFlinger" in s
+                    or "WorkerRegistryImpl" in s
+                    or "LatinMotionEventHandler" in s):
+                continue  # driver/platform churn is noise
+            if "kubedroid" in s or "AndroidRuntime" in s or "FATAL" in s:
+                out.append(s[:200])
+            elif "E/" in s:
+                other.append(s[:200])
+    picked = out or other  # app-relevant lines win; else generic errors
+    return " | ".join(picked[-15:])[:1500]
+
+
+def main():
+    env = dict(os.environ, ANDROID_HOME=ANDROID_HOME, ANDROID_SDK_ROOT=ANDROID_HOME)
+
+    _, _, _, _, ca_b64 = make_certs()
+    step("fixtures", True)
+
+    # TLS stub
+    if os.path.exists(LOG):
+        os.remove(LOG)
+    server = subprocess.Popen(
+        [sys.executable, SERVER, str(PORT), LOG,
+         f"{WORK}/server-cert.pem", f"{WORK}/server-key.pem"],
+        env=env,
+    )
+    deadline = time.time() + 10
+    while time.time() < deadline and log_count("SERVER_START") == 0:
+        time.sleep(0.3)
+    if not step("stub-server-started", log_count("SERVER_START") == 1):
+        server.terminate()
+        return finish()
+
+    # emulator
+    sh([SDKMANAGER, IMAGE], env=env)
+    subprocess.run([AVDMANAGER, "delete", "avd", "-n", AVD],
+                   env=env, capture_output=True, text=True, input="no\n")
+    created = subprocess.run(
+        [AVDMANAGER, "create", "avd", "-n", AVD, "-k", IMAGE, "-d", "pixel"],
+        env=env, capture_output=True, text=True, input="no\n",
+    )
+    if not step("avd-create", created.returncode == 0,
+                (created.stdout.strip().splitlines() or [""])[-1]
+                or created.stderr[-200:]):
+        server.terminate()
+        return finish()
+    emu = subprocess.Popen(
+        [EMULATOR, "-avd", AVD, "-port", SERIAL.split("-")[1], "-no-window", "-no-audio",
+         "-no-boot-anim", "-gpu", "swiftshader_indirect", "-no-snapshot",
+         "-wipe-data"],
+        env=env, stdout=open(f"/tmp/emu-accept-{API}.log", "w"), stderr=subprocess.STDOUT,
+    )
+    try:
+        run_app_flow(ca_b64)
+    finally:
+        adb("emu", "kill")
+        emu.terminate()
+        server.terminate()
+    return finish()
+
+
+def run_app_flow(ca_b64):
+    try:
+        sh([ADB, "-s", SERIAL, "wait-for-device"], timeout=240)
+    except subprocess.TimeoutExpired:
+        step("emulator-boot", False, "(wait-for-device timeout)")
+        return
+    deadline = time.time() + 300
+    while time.time() < deadline:
+        if adb("shell", "getprop", "sys.boot_completed").stdout.strip() == "1":
+            break
+        time.sleep(3)
+    step("emulator-boot", adb("shell", "getprop", "sys.boot_completed").stdout.strip() == "1")
+
+    # host stub -> guest loopback (see SERVER_URL comment); survives pm
+    # clear and force-stop, but is lost on emulator reboot, so set it here.
+    adb("reverse", f"tcp:{PORT}", f"tcp:{PORT}")
+    step("adb-reverse", f"tcp:{PORT}" in adb("reverse", "--list").stdout)
+
+    disable_ime()
+
+    adb("install", "-r", APK)
+    adb("shell", "am", "force-stop", PKG)
+    adb("shell", "pm", "clear", PKG)  # pristine state incl. keystore+datastore
+    adb("shell", "am", "start", "-n", f"{PKG}/{ACTIVITY}")
+    time.sleep(8)
+
+    root, node = wait_node(text="Paste kubeconfig")
+    if not step("empty-state", node is not None):
+        return
+
+    # ---- paste import (token, CA-pinned TLS) ----
+    root, _ = wait_node(text="Paste kubeconfig")  # re-dump for fresh tree
+    tap_where(root, text="Paste kubeconfig") if root is not None else None
+    def field_text():
+        try:
+            r = ui_dump(retries=2)
+        except RuntimeError:
+            return None  # dump flaked — treat as indeterminate, don't retype
+        for n in r.iter("node"):
+            if (n.get("class") or n.get("className") or "").endswith("EditText"):
+                return n.get("text") or ""
+        return None
+
+    # retry: tap may race the empty-state render; poll for the dialog edit
+    edits = []
+    deadline = time.time() + 25
+    while time.time() < deadline and not edits:
+        root = ui_dump_tree()
+        edits = find_edit_nodes(root)
+        if not edits:
+            tap_where(root, text="Paste kubeconfig")
+            time.sleep(2)
+    if not step("paste-dialog", bool(edits), _dump_debug(root) if not edits else ""):
+        return
+    x, y = center(edits[0])
+    adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(1.5)
+    type_multiline(field_text, kubeconfig(ca_b64))
+    time.sleep(2)
+
+    # Did the text actually land in the field? (focus may have been missed)
+    typed = False
+    deadline = time.time() + 15
+    while time.time() < deadline and not typed:
+        try:
+            root = ui_dump(retries=3)
+            typed = any("apiVersion" in (n.get("text") or "")
+                        for n in root.iter("node"))
+        except RuntimeError:
+            time.sleep(1)
+    if not typed:
+        step("text-registered-first-try", False, "(field empty — refocusing)")
+        root = ui_dump()  # fresh tree: don't reuse stale edit bounds
+        edits = find_edit_nodes(root)
+        if edits:
+            x, y = center(edits[0])
+            adb("shell", "input", "tap", str(x), str(y))
+            time.sleep(1.5)
+            type_multiline(field_text, kubeconfig(ca_b64))
+            time.sleep(2)
+
+    # Compose exposes the click action on the merged parent, not the Text
+    # node — match by text only, like the Paste kubeconfig tap above.
+    # enabled must be checked for real: a parse error leaves the button
+    # present-but-disabled, and tapping it is a silent no-op (API-26
+    # 'contexts:'→'t:' IME corruption masqueraded as a tap failure).
+    # Compose puts enabled=false on the merged clickable ANCESTOR, not the
+    # Text child — walk parents via a child->parent map.
+    def import_button_enabled(r):
+        parent = {c: p for p in r.iter("node") for c in p}
+        diag = ""
+        for n in r.iter("node"):
+            # compare STRIPPED: API-26 uiautomator reports Compose Text
+            # with trailing whitespace, exact match never hits
+            if (n.get("text") or "").strip() != "Import cluster":
+                continue
+            a, ok, chain = n, True, []
+            while a is not None:
+                chain.append(f"{a.get('class','?').split('.')[-1]}"
+                             f"[click={a.get('clickable')},"
+                             f"en={a.get('enabled')}]")
+                if a.get("clickable") == "true" and a.get("enabled") == "false":
+                    ok = False
+                    break
+                a = parent.get(a)
+            if ok:
+                return n, ""
+            diag = " <- ".join(chain)
+        return None, diag
+
+    root, confirm = None, None
+    last_diag, good_dumps = "", 0
+    deadline = time.time() + 20
+    while time.time() < deadline and confirm is None:
+        r = ui_dump_tree()
+        if len(list(r.iter("node"))) > 1:
+            good_dumps += 1
+        n, last_diag = import_button_enabled(r)
+        if n is not None:
+            root, confirm = r, n
+        else:
+            time.sleep(1)
+    if confirm is None and root is None:
+        root = ui_dump_tree()
+    if not step("import-enabled", confirm is not None,
+                (f"(good_dumps={good_dumps}, "
+                 f"field_tail={(field_text() or '')[-160:]!r}) "
+                 + (last_diag or _dump_debug(root)))
+                if confirm is None else ""):
+        return
+    # Tap Import with confirmation: on slow devices the single blind tap
+    # can miss (dialog stays open); the tall field can also push the button
+    # toward the dialog fold. Re-dump, swipe to reveal, re-tap until closed.
+    for _ in range(3):
+        root = ui_dump_tree()
+        nodes = find_nodes(root, text="Import cluster")
+        if not nodes:
+            ed = find_edit_nodes(root)
+            if ed:
+                ex, ey = center(ed[0])
+                adb("shell", "input", "swipe", str(ex), str(ey + 300),
+                    str(ex), str(ey - 300), "400")
+            time.sleep(1)
+            continue
+        tx, ty = center(nodes[0])
+        adb("shell", "input", "tap", str(tx), str(ty))
+        time.sleep(2.5)
+        chk = ui_dump_tree()
+        if not any("Import cluster" in (n.get("text") or "")
+                   for n in chk.iter("node")):
+            break  # dialog closed — tap landed
+
+    deadline = time.time() + 30
+    while time.time() < deadline and log_count(f"GET /version Auth=Bearer {TOKEN}") == 0:
+        time.sleep(1)
+    step("probe-hit-stub-with-token",
+         log_count(f"GET /version Auth=Bearer {TOKEN}") >= 1,
+         "" if log_count(f"GET /version Auth=Bearer {TOKEN}") else logcat_errors())
+
+    root, row = wait_node(text="accept-east")
+    if row is not None:
+        step("row-visible", True)
+    else:
+        # is the dialog still open? (Import tap missed / button disabled)
+        stuck = ui_dump_tree()
+        still_open = any("Import cluster" in (n.get("text") or "")
+                         for n in stuck.iter("node"))
+        step("row-visible", False,
+             f"(dialog still open={still_open}) {_dump_debug(stuck)} "
+             f"{logcat_errors()}")
+
+    # ---- kill + relaunch: restored and re-probe ----
+    adb("shell", "am", "force-stop", PKG)
+    adb("shell", "am", "start", "-n", f"{PKG}/{ACTIVITY}")
+    root, row = wait_node(text="accept-east")
+    if row is None:
+        # am start can be swallowed by the dying previous process — retry
+        adb("shell", "am", "start", "-n", f"{PKG}/{ACTIVITY}")
+        root, row = wait_node(text="accept-east")
+    if row is None:
+        time.sleep(3)  # allow a slow start/crash to fully land
+        top = adb("shell", "dumpsys", "activity", "activities")
+        resumed = [ln.strip()[:120] for ln in (top.stdout or "").splitlines()
+                   if "ResumedActivity" in ln][:2]
+        step("restored-after-restart", False,
+             f"(top={resumed!r}) {_dump_debug(ui_dump_tree())} "
+             f"{logcat_errors()}")
+    else:
+        step("restored-after-restart", True)
+
+    root = ui_dump_tree()
+    before = log_count("GET /version")
+    # uiautomator attribute is content-desc (NOT contentDesc) — a mismatch
+    # here silently matches nothing and the tap is a no-op.
+    tap_where(root, **{"content-desc": "Refresh"})
+    deadline = time.time() + 30
+    while time.time() < deadline and log_count("GET /version") <= before:
+        time.sleep(1)
+    step("reprobe-after-restart", log_count("GET /version") > before,
+         "(Keystore decrypt + ApiClient rebuild OK)")
+
+    # ---- delete ----
+    root, row = wait_node(text="accept-east")
+    if row is not None:
+        x, y = center(row)
+        adb("shell", "input", "swipe", str(x), str(y), str(x), str(y), "1500")
+        time.sleep(2)
+        root = ui_dump_tree()
+        if tap_where(root, text="Delete"):
+            time.sleep(2)
+            root, empty = wait_node(text="No cluster connected")
+            step("delete-removes-row", empty is not None)
+            ls = adb("shell", "run-as", PKG, "ls", "files/connections")
+            step("delete-removes-blob",
+                 "No such file" in ls.stderr or not ls.stdout.strip(),
+                 f"(ls: {ls.stdout.strip()!r})")
+        else:
+            step("delete-confirm-tap", False)
+
+    # ---- exec kubeconfig rejected ----
+    baseline = log_count("GET /version")
+    root, _ = wait_node(text="Paste kubeconfig")
+    if root is not None:
+        tap_where(root, text="Paste kubeconfig")
+    # same retry-open loop as the first dialog: tap may race the render
+    edits = []
+    deadline = time.time() + 25
+    while time.time() < deadline and not edits:
+        root = ui_dump_tree()
+        edits = find_edit_nodes(root)
+        if not edits:
+            tap_where(root, text="Paste kubeconfig")
+            time.sleep(2)
+    if not step("paste-dialog-2", bool(edits), _dump_debug(root) if not edits else ""):
+        return
+    x, y = center(edits[0])
+    adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(1.5)
+    type_multiline(field_text, kubeconfig(ca_b64, with_exec=True))
+
+    # the tall EditText can push the error Text below the dialog fold;
+    # uiautomator only reports visible nodes — swipe up before polling
+    adb("shell", "input", "swipe", str(x), str(y + 300), str(x), str(y - 300), "400")
+    time.sleep(1)
+
+    # validation error may render a moment after typing settles; poll for it
+    shown = False
+    deadline = time.time() + 20
+    while time.time() < deadline and not shown:
+        try:
+            root = ui_dump(retries=3)
+        except RuntimeError:
+            time.sleep(1)
+            continue
+        shown = any("uses an exec credential plugin" in (n.get("text") or "")
+                    for n in root.iter("node"))
+        if not shown:
+            time.sleep(1)
+    detail = ""
+    if not shown:
+        field = field_text()
+        detail = (f"(field tail: {(field or '')[-120:]!r})")
+    step("exec-error-shown", shown, detail)
+
+    root = ui_dump_tree()
+    tap_where(root, text="Cancel")
+    time.sleep(2)
+    step("exec-nothing-persisted", log_count("GET /version") == baseline)
+    ls = adb("shell", "run-as", PKG, "ls", "files/connections")
+    step("exec-no-blob", "No such file" in ls.stderr or not ls.stdout.strip())
+
+
+def finish():
+    if failures:
+        print(f"ACCEPTANCE_FAIL failing={failures}")
+        return 1
+    print("ACCEPTANCE_PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -27,3 +27,4 @@ captures/
 # Test/report output
 report/
 reports/
+__pycache__/

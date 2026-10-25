@@ -1,6 +1,6 @@
 ---
 description: Cluster connection management — import kubeconfigs (file, paste, QR), manage multiple connections and contexts, store credentials in Keystore-encrypted storage, and build cached io.kubernetes client-java ApiClients per context.
-status: proposed
+status: active
 ---
 
 # Cluster Connection Management
@@ -156,8 +156,14 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
   * File: `ActivityResultContracts.OpenDocument` (mime
     `application/x-yaml`, `text/yaml`, `text/plain`);
   * Paste: multiline TextField + Validate button (inline typed errors);
-  * QR: `QrScannerScreen` (CameraX preview + ML Kit analyzer) with chunk
-    progress UI.
+  * QR: `QrScannerDialog` (CameraX `PreviewView` hosted in `AndroidView` +
+    ML Kit analyzer) with chunk progress UI (`i/n`) and a Restart button —
+    a failed/out-of-order sequence requires a fresh `QrChunkCodec.Decoder`.
+    CameraX camera-compose was not used: its preview APIs churned;
+    `AndroidView` + `PreviewView` + `ProcessCameraProvider` is stable.
+    The scanned chunk stream reassembles into the JSON envelope
+    `{"version":1,"kubeconfig":"…"}` (`QrEnvelopeCodec`) — the contract
+    `tools/qr-export` (dev-plan stage 7) will produce.
 * Delete: long-press row → confirm dialog → wipe (no undo).
 * All screens behind `ClusterListViewModel` (StateFlow + one-shot events),
   `hiltViewModel()` per entry decorator from spec 02 — this is the first
@@ -174,9 +180,10 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
 | `androidx.camera:camera-core` | 1.6.2 | QR scanner |
 | `androidx.camera:camera-camera2` | 1.6.2 | |
 | `androidx.camera:camera-lifecycle` | 1.6.2 | |
-| `androidx.camera:camera-view` | 1.6.2 | |
-| `androidx.camera:camera-compose` | 1.6.2 | preview in Compose |
+| `androidx.camera:camera-view` | 1.6.2 | `PreviewView` in an `AndroidView` |
 | `androidx.datastore:datastore-preferences` | 1.3.0 | cluster metadata registry |
+| `androidx.compose.material:material-icons-core` | (BOM) | `Icons.Filled.Refresh/Warning` |
+| `com.squareup.okhttp3:mockwebserver` | 5.4.0 | test only; must match the OkHttp 5.4.0 that client-java 27.0.0 resolves |
 
 client-java Android caveats (resolved during dev-plan stage 1, 2026-10-24):
 `./gradlew build` is green with no core library desugaring (`ClientJavaSpikeTest`
@@ -187,6 +194,17 @@ exec-style auth this spec declares a non-goal). `packaging.resources.excludes`
 drops duplicate `META-INF` license/INDEX files from the remaining Google auth
 transitives. ProGuard/R8: release builds add keep rules for Gson-serialized
 models; debug builds unaffected.
+
+ML Kit note (stage 5): the `BarcodeScanner` interface on the compile
+classpath comes from `play-services-mlkit-barcode-scanning` and its method
+is `process(InputImage)` — `processImage()` does not exist; calling it
+fails compilation. CameraX `ImageProxy.image` is `@ExperimentalGetImage`
+(a Java `@Experimental`, not Kotlin `@RequiresOptIn`): the Kotlin compiler
+is happy without opt-in but lint flags it, and lint ignores kotlin
+`@OptIn` for such annotations — the project-wide opt-in lives in
+`lint.xml` (`<option name="opt-in" …>` wired via `lint { lintConfig }`).
+`AndroidManifest.xml` gains `INTERNET` and `CAMERA` permissions
+(camera `required=false`; paste/file import works without a camera).
 
 ## Configuration
 
@@ -223,7 +241,10 @@ Unit tests (JVM + Robolectric; fakes everywhere, no network):
   on OkHttp client).
 * `ClusterListViewModelTest` (coroutines-test): empty state, add-paste
   happy path, validation error display, delete confirm/cancel, status
-  rendering per ConnectionStatus.
+  rendering per ConnectionStatus, duplicate rejection, context switch,
+  rename, file import via `file://` URI through `contentResolver`
+  (SAF picker itself hands the same `Uri` on a real device; the picker
+  UI is the only part not scriptable here).
 * Robolectric Compose: empty-state buttons visible; paste flow end-to-end
   with fake repo; delete confirmation dialog.
 
@@ -236,6 +257,22 @@ paths and 401 mapping.
 non-exportability assertion. This exception is acceptable because the
 class is ~60 lines of platform glue and its logic contract is tested
 against the fake.
+
+End-to-end emulator acceptance is scripted: `tools/acceptance/acceptance.py
+<api>` boots the headless emulator (`kv26`/`kv37`) and drives the app over
+adb against a TLS API stub (`tools/acceptance/accept-server.py` running on
+the host at `https://10.0.2.2:6443` with a throwaway CA generated at
+`~/kubedroid-accept`). Steps asserted per run: paste-import of a
+CA-pinned token kubeconfig ⇒ stub log shows `GET /version Auth=Bearer …`
+(green-dot path incl. custom-CA TLS handshake and Keystore encrypt);
+force-stop + relaunch ⇒ row restored (DataStore + Keystore decrypt);
+Refresh ⇒ second stub hit (ApiClient rebuild); long-press delete ⇒ row
+gone and `files/connections` empty; exec kubeconfig ⇒ inline
+`uses an exec credential plugin` error with zero stub traffic and no
+blob. Emulator camera injection is not used: the QR *scan* path is
+covered at codec level (`QrChunkCodecTest`, `QrEnvelopeCodecTest`) plus
+the chunk-progress UI; live scanning is validated on a physical device
+together with `tools/qr-export` (stage 7).
 
 ## Acceptance criteria
 
