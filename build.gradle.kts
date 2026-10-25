@@ -31,6 +31,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    lint {
+        lintConfig = file("lint.xml")
+    }
+
     packaging {
         resources {
             // META-INF duplicates from client-java's auth transitives.
@@ -90,6 +94,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.material3.adaptive)
     implementation(libs.androidx.material3.adaptive.navigation3)
 
@@ -116,6 +121,11 @@ dependencies {
     }
     implementation(libs.snakeyaml)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     // Robolectric needs the test-manifest AAR (declares the ComponentActivity

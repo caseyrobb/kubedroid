@@ -1,6 +1,8 @@
 package com.neozeon.kubedroid.data.local
 
 import com.neozeon.kubedroid.data.kubernetes.ApiClientProvider
+import com.neozeon.kubedroid.data.kubernetes.KubeconfigParser
+import com.neozeon.kubedroid.data.kubernetes.ParseResult
 import com.neozeon.kubedroid.data.model.ActiveSelection
 import com.neozeon.kubedroid.data.model.AddResult
 import com.neozeon.kubedroid.data.model.ClusterConnection
@@ -35,6 +37,7 @@ class ClusterRepository @Inject constructor(
     private val blobStore: BlobStore,
     private val apiClientProvider: ApiClientProvider,
     private val clock: WallClock,
+    private val parser: KubeconfigParser,
 ) {
     val connections: StateFlow<List<ClusterConnection>> = registry.connections
     val activeSelection: StateFlow<ActiveSelection> = registry.activeSelection
@@ -42,12 +45,15 @@ class ClusterRepository @Inject constructor(
     private val _statuses = MutableStateFlow<Map<UUID, ConnectionStatus>>(emptyMap())
     val statuses: StateFlow<Map<UUID, ConnectionStatus>> = _statuses.asStateFlow()
 
-    suspend fun add(
-        raw: String,
-        displayName: String,
-        contextName: String,
-        contexts: List<String>,
-    ): AddResult {
+    suspend fun add(raw: String, displayName: String, contextName: String): AddResult {
+        // Repository is the security boundary: re-parse, never trust the UI.
+        val parsed = when (val r = parser.parse(raw)) {
+            is ParseResult.Valid -> r.config
+            is ParseResult.Invalid -> return AddResult.Rejected(r.error.userMessage())
+        }
+        val selected = parsed.contexts.firstOrNull { it.name == contextName }
+            ?: return AddResult.Rejected("unknown context '$contextName'")
+        val cluster = parsed.clusters.first { it.name == selected.clusterName }
         val sha = PayloadHash.sha256Hex(raw.toByteArray(Charsets.UTF_8))
         registry.connections.value.firstOrNull { it.payloadSha256 == sha }?.let {
             return AddResult.Duplicate(it.id)
@@ -58,7 +64,8 @@ class ClusterRepository @Inject constructor(
             addedAtEpochSec = clock.epochSec(),
             payloadSha256 = sha,
             contextName = contextName,
-            contexts = contexts,
+            contexts = parsed.contexts.map { it.name },
+            insecureTls = cluster.insecureSkipTlsVerify,
         )
         blobStore.write(connection.id, raw.toByteArray(Charsets.UTF_8))
         registry.setConnections(registry.connections.value + connection)
@@ -110,7 +117,7 @@ class ClusterRepository @Inject constructor(
             client.httpClient.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful -> ConnectionStatus.Reachable(
-                        response.body?.string()?.take(200) ?: "ok",
+                        response.body.string().take(200).ifBlank { "ok" },
                     )
                     response.code == 401 ->
                         ConnectionStatus.Unreachable("API server rejected credentials (401)")

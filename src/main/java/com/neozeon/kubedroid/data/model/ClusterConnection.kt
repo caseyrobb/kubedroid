@@ -17,6 +17,8 @@ data class ClusterConnection(
     val contextName: String,
     /** Non-secret context-name list so the dropdown renders without decrypting. */
     val contexts: List<String>,
+    /** Cluster uses insecure-skip-tls-verify ⇒ persistent warning badge (spec 03 UI). */
+    val insecureTls: Boolean = false,
 )
 
 /** Live connectivity state, kept in memory only (spec 03 "Connection probe"). */
@@ -37,4 +39,6 @@ sealed interface AddResult {
     data class Added(val connection: ClusterConnection) : AddResult
     /** Raw payload byte-identical to an existing connection; nothing persisted. */
     data class Duplicate(val existingId: UUID) : AddResult
+    /** Payload failed KubeconfigParser validation; nothing persisted. */
+    data class Rejected(val reason: String) : AddResult
 }

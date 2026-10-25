@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- spec 03: connection probe + ApiClient traffic -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- spec 03 stage 5: chunked QR kubeconfig import -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:name=".KubeApplication"
         android:allowBackup="false"

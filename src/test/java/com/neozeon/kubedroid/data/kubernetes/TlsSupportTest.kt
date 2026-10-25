@@ -53,9 +53,14 @@ class TlsSupportTest {
         val blobStore = BlobStore(dir, FakeCipherVault())
         val parser = KubeconfigParser()
         val provider = ApiClientProvider(blobStore, registry, parser)
-        val repository = ClusterRepository(registry, blobStore, provider, WallClock { 1L })
+        val repository = ClusterRepository(
+            registry, blobStore, provider, WallClock { 1L }, parser,
+        )
         suspend fun add(raw: String) =
-            (repository.add(raw, "tls-test", "ctx1", listOf("ctx1")) as AddResult.Added).connection.id
+            when (val r = repository.add(raw, "tls-test", "ctx1")) {
+                is AddResult.Added -> r.connection.id
+                else -> error("add failed: $r")
+            }
     }
 
     private fun httpsKubeconfig(server: String, clusterExtras: String = "") = """

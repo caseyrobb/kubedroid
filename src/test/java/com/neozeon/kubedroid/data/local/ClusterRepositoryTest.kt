@@ -74,13 +74,15 @@ class ClusterRepositoryTest {
         val vault = FakeCipherVault()
         val blobStore = BlobStore(dir, vault)
         val provider = ApiClientProvider(blobStore, registry, KubeconfigParser())
-        val repository = ClusterRepository(registry, blobStore, provider, WallClock { 1234567890L })
+        val repository = ClusterRepository(
+            registry, blobStore, provider, WallClock { 1234567890L }, KubeconfigParser(),
+        )
     }
 
     private fun fixture() = Fixture(tmp.newFolder())
 
     private suspend fun Fixture.addFirst(): AddResult.Added =
-        repository.add(raw, "prod", "ctx1", listOf("ctx1", "ctx2")) as AddResult.Added
+        repository.add(raw, "prod", "ctx1") as AddResult.Added
 
     @Test fun addPersistsAndActivates() = runTest {
         val f = fixture()
@@ -111,12 +113,28 @@ class ClusterRepositoryTest {
     @Test fun identicalPayloadRejectedAsDuplicate() = runTest {
         val f = fixture()
         val first = f.addFirst()
-        val second = f.repository.add(raw, "prod-copy", "ctx1", listOf("ctx1", "ctx2"))
+        val second = f.repository.add(raw, "prod-copy", "ctx1")
         assertTrue(second is AddResult.Duplicate)
         assertEquals(first.connection.id, (second as AddResult.Duplicate).existingId)
         assertEquals(1, f.registry.connections.value.size)
         // nothing extra persisted for the duplicate
         assertEquals(1, f.dir.walkTopDown().count { it.isFile })
+    }
+
+    @Test fun invalidKubeconfigRejectedAndNothingPersisted() = runTest {
+        val f = fixture()
+        val bad = raw.replace("token: TOP-SECRET-TOKEN-XYZ", "exec:\n        command: kubelogin")
+        val result = f.repository.add(bad, "bad", "ctx1")
+        assertTrue("expected Rejected, got $result", result is AddResult.Rejected)
+        assertTrue((result as AddResult.Rejected).reason.contains("exec"))
+        assertEquals(0, f.registry.connections.value.size)
+        assertEquals(0, f.dir.walkTopDown().count { it.isFile })
+    }
+
+    @Test fun unknownContextRejected() = runTest {
+        val f = fixture()
+        val result = f.repository.add(raw, "prod", "no-such-context")
+        assertTrue(result is AddResult.Rejected)
     }
 
     @Test fun deleteWipesRegistryRowBeforeBlob() = runTest {
@@ -137,7 +155,7 @@ class ClusterRepositoryTest {
         val f = fixture()
         val first = f.addFirst().connection.id
         f.repository.delete(first)
-        val again = f.repository.add(raw, "prod", "ctx1", listOf("ctx1", "ctx2"))
+        val again = f.repository.add(raw, "prod", "ctx1")
         assertTrue(again is AddResult.Added)
         assertNotEquals(first, (again as AddResult.Added).connection.id)
     }

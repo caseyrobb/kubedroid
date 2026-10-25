@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- CameraX ImageProxy.getImage is @ExperimentalGetImage; we consume it in
+         the QR analyzer (QrScannerDialog). Kotlin-side we @OptIn in-file; lint
+         needs the project-wide opt-in because it ignores kotlin OptIn for
+         Java-defined @Experimental annotations. -->
+    <issue id="UnsafeOptInUsageError">
+        <option name="opt-in" value="androidx.camera.core.ExperimentalGetImage" />
+    </issue>
+</lint>

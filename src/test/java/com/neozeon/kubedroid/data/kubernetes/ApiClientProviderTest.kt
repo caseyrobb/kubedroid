@@ -26,12 +26,15 @@ class TestClusterFixture(val dir: File) {
     val blobStore = BlobStore(dir, FakeCipherVault())
     val parser = KubeconfigParser()
     val provider = ApiClientProvider(blobStore, registry, parser)
-    val repository = ClusterRepository(registry, blobStore, provider, WallClock { 1L })
+    val repository = ClusterRepository(
+        registry, blobStore, provider, WallClock { 1L }, parser,
+    )
 
     suspend fun add(raw: String): UUID =
-        when (val r = repository.add(raw, "test", "ctx1", listOf("ctx1"))) {
+        when (val r = repository.add(raw, "test", "ctx1")) {
             is AddResult.Added -> r.connection.id
             is AddResult.Duplicate -> error("unexpected duplicate")
+            is AddResult.Rejected -> error("rejected: ${r.reason}")
         }
 }
 

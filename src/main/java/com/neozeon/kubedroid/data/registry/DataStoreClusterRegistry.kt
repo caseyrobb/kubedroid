@@ -36,6 +36,7 @@ class DataStoreClusterRegistry(private val context: Context) : ClusterRegistry {
         val payloadSha256: String,
         val contextName: String,
         val contexts: List<String>,
+        val insecureTls: Boolean = false,
     )
 
     private val store = context.clusterDataStore
@@ -90,6 +91,7 @@ class DataStoreClusterRegistry(private val context: Context) : ClusterRegistry {
                     payloadSha256 = it.payloadSha256,
                     contextName = it.contextName,
                     contexts = it.contexts,
+                    insecureTls = it.insecureTls,
                 )
             }
             prefs[keyConnections] = Json.encodeToString(rows)
@@ -110,5 +112,6 @@ class DataStoreClusterRegistry(private val context: Context) : ClusterRegistry {
         payloadSha256 = payloadSha256,
         contextName = contextName,
         contexts = contexts,
+        insecureTls = insecureTls,
     )
 }

@@ -7,7 +7,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import com.neozeon.kubedroid.ui.home.HomeScreen
+import com.neozeon.kubedroid.ui.cluster.ClusterListScreen
 
 /**
  * Pops one entry from the app-owned back stack.
@@ -36,7 +36,8 @@ fun KubedroidApp() {
         ),
         entryProvider = entryProvider {
             entry<HomeKey> {
-                HomeScreen()
+                // spec 03: placeholder body replaced by the cluster list
+                ClusterListScreen()
             }
         },
     )
