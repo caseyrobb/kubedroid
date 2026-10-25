@@ -43,11 +43,15 @@ Out of scope (later specs / explicit non-goals):
 `data/model/`:
 
 * `ClusterConnection(id: UUID, displayName: String, addedAtEpochSec: Long,
-  payloadSha256: String)` — metadata only, no secrets; persisted in
+  payloadSha256: String, contextName: String, contexts: List<String>)` —
+  metadata only, no secrets; persisted in
   DataStore Preferences. `payloadSha256` is the hex SHA-256 of the raw
   kubeconfig bytes, used only for duplicate-import detection (human
   decision 2026-10-24: imports are independent except exact-identical
-  payloads are rejected as duplicates).
+  payloads are rejected as duplicates). `contextName` is the row's
+  currently selected context and `contexts` the full context-name list
+  (non-secret) so the dropdown renders without decrypting the blob
+  (stage 2 refinement).
 * `ConnectionStatus` — `Unvalidated | Reachable(serverVersion) | Unreachable(reason)`.
 * `ActiveSelection(connectionId: UUID?, contextName: String?)` — persisted;
   null means no cluster selected (Home empty state).

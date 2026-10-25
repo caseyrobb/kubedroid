@@ -13,6 +13,10 @@ data class ClusterConnection(
     val addedAtEpochSec: Long,
     /** Hex SHA-256 of the raw kubeconfig bytes; duplicate-import detection only. */
     val payloadSha256: String,
+    /** Currently selected context for this row (stage 2 refinement). */
+    val contextName: String,
+    /** Non-secret context-name list so the dropdown renders without decrypting. */
+    val contexts: List<String>,
 )
 
 /** Live connectivity state, kept in memory only (spec 03 "Connection probe"). */

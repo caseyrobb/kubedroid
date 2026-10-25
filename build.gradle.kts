@@ -115,6 +115,7 @@ dependencies {
         exclude(group = "software.amazon.awssdk")
     }
     implementation(libs.snakeyaml)
+    implementation(libs.androidx.datastore.preferences)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     // Robolectric needs the test-manifest AAR (declares the ComponentActivity
@@ -127,6 +128,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlinx.serialization.json)
     testImplementation(libs.hilt.android.testing)
+    testImplementation(libs.okhttp.mockwebserver)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
 }

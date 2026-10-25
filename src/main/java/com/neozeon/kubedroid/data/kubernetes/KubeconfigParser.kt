@@ -3,6 +3,7 @@ package com.neozeon.kubedroid.data.kubernetes
 import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
+import javax.inject.Inject
 import java.util.Base64
 
 /**
@@ -10,7 +11,7 @@ import java.util.Base64
  * here, not via client-java exceptions, so errors stay actionable).
  * Parses with snakeyaml's SafeConstructor — aliases/objects are rejected.
  */
-class KubeconfigParser {
+class KubeconfigParser @Inject constructor() {
 
     fun parse(raw: String): ParseResult {
         val root = try {
