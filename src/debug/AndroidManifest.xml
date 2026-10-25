@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest. Declares the empty ComponentActivity that Compose's
+  createComposeRule launches under Robolectric; Robolectric resolves activities
+  only from the variant's merged manifest and does not reliably see the
+  ui-test-manifest AAR's entries (robolectric#4736). Never merged into release.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="true" />
+    </application>
+</manifest>

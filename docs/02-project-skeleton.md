@@ -1,6 +1,6 @@
 ---
 description: Defines the kubedroid project skeleton — Gradle build with version catalog, flat single-module src/ layout, Hilt wiring, Material 3 theme, and a Navigation 3 adaptive shell with a placeholder Home destination.
-status: proposed
+status: active
 ---
 
 # Project Skeleton
@@ -36,9 +36,11 @@ Out of scope (future specs):
 * Version catalog at `gradle/libs.versions.toml`; **no literal versions in
   any `build.gradle.kts`** — every dependency/plugin references the catalog.
 * Single-module build: root `build.gradle.kts` applies `com.android.application`,
-  `org.jetbrains.kotlin.android`, `org.jetbrains.kotlin.plugin.compose`,
-  `org.jetbrains.kotlin.plugin.serialization`, `com.google.devtools.ksp`,
-  and `com.google.dagger.hilt.android`. `settings.gradle.kts` declares
+  `org.jetbrains.kotlin.plugin.compose`, `org.jetbrains.kotlin.plugin.serialization`,
+  `com.google.devtools.ksp`, and `com.google.dagger.hilt.android`.
+  `org.jetbrains.kotlin.android` is deliberately NOT applied: Kotlin support is
+  built into AGP 9 (kotl.in/gradle/agp-built-in-kotlin) and applying the plugin
+  fails the build. `settings.gradle.kts` declares
   `pluginManagement` + `dependencyResolutionManagement` (repos: `google()`,
   `mavenCentral()`) and includes no subprojects.
 * Source layout (flat, per AGENTS.md):
@@ -126,6 +128,7 @@ Runtime:
 | `androidx.hilt:hilt-navigation-compose` | 1.4.0 | `hiltViewModel()` (see Open questions) |
 | `com.google.dagger:hilt-android` | 2.60.1 | |
 | `org.jetbrains.kotlinx:kotlinx-serialization-core` | 1.9.0 | serializable NavKeys |
+| `org.jetbrains.kotlinx:kotlinx-serialization-json` | 1.9.0 | test scope (NavKey round trip) |
 
 Test-only:
 
@@ -136,6 +139,20 @@ Test-only:
 | `androidx.test.ext:junit` | 1.3.0 | |
 | `org.jetbrains.kotlinx:kotlinx-coroutines-test` | 1.11.0 | used by later specs; pinned now to avoid version drift |
 | `com.google.dagger:hilt-android-testing` | 2.60.1 | |
+| `androidx.compose.ui:ui-test-manifest` | BOM | also on the unit-test classpath |
+
+Unit-test JVM flags (in `build.gradle.kts` `testOptions.unitTests.all`):
+Robolectric 4.17 on JDK 17+ needs `--add-opens` for `java.base/java.io`,
+`java.lang`, `java.lang.reflect`, `java.util`, `java.util.concurrent`,
+`java.net`, `sun.nio.fs`, plus `--add-exports java.base/jdk.internal.access=ALL-UNNAMED`
+(robolectric#11434). Without them every Robolectric test dies in
+`FileDescriptorInterceptor`.
+
+`src/debug/AndroidManifest.xml` explicitly declares
+`androidx.activity.ComponentActivity` (exported=true, matching the
+ui-test-manifest AAR): Robolectric resolves activities only from the
+variant's merged manifest, so the createComposeRule-hosting activity must be
+declared there (debug source set only — never in release).
 
 ## Configuration
 
@@ -144,7 +161,7 @@ No runtime configuration properties. Build configuration values:
 | Property | Value | Notes |
 | --- | --- | --- |
 | `namespace` / `applicationId` | `com.neozeon.kubedroid` | |
-| `compileSdk` | 37 | AGP 9.4 max supported |
+| `compileSdk` | 37 | platform `android-37.0` (Google now publishes versioned minors); AGP 9.4 max |
 | `targetSdk` | 37 | |
 | `minSdk` | 26 | per `00-project-overview.md` |
 | `versionCode` / `versionName` | 1 / 0.1.0 | |
@@ -171,8 +188,8 @@ sufficient per the rule "prefer pure functions and immutable state".
 
 ## Acceptance criteria
 
-* `./gradlew build` exits 0 with no warnings escalated to errors.
-* `./gradlew assembleDebug` produces `build/outputs/apk/debug/app-debug.apk`.
+* `./gradlew build` exits 0 (assemble + unit tests + lint).
+* `./gradlew assembleDebug` produces `build/outputs/apk/debug/kubedroid-debug.apk`.
 * `./gradlew testDebugUnitTest` passes with the four test classes above.
 * The debug APK installs and launches on an API 26 device/emulator and an
   API 37 device/emulator, showing the Home placeholder.
@@ -194,7 +211,9 @@ sufficient per the rule "prefer pure functions and immutable state".
   decorator provides. Implementations must verify one injected ViewModel is
   created per entry and cleared on pop; if behavior is wrong, fall back to
   assisted injection + a `di/` ViewModel factory instead of fighting the
-  library. *Status: resolve during stage 3.*
+  library. *Answered 2026-10-24: the skeleton contains no ViewModels, so this
+  is deferred to the first feature spec that injects one (spec 03); the
+  assisted-injection fallback stands as the documented plan B.*
 * **`adaptive-navigation3` is alpha (1.4.0-alpha03).** It is the only source
   of the canonical `ListDetailSceneStrategy`. Acceptable for now; revisit
   when 1.4.0 reaches stable. *Answered: accept alpha.*
