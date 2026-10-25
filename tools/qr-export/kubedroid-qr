@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# kubedroid-qr — companion QR export CLI (spec 03 stage 7).
+# Builds on first run via the Gradle wrapper in this directory.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="$DIR/build/install/kubedroid-qr/bin/kubedroid-qr"
+if [[ ! -x "$BIN" ]]; then
+    (cd "$DIR" && ./gradlew --quiet installDist >&2)
+fi
+exec "$BIN" "$@"

@@ -100,7 +100,12 @@ QR format (chunked, because kubeconfigs exceed QR capacity):
 scanned in sequence; the scanner UI shows progress `i/n` and requires the
 chunks in order; reassembly validates the JSON and total count before
 handing the string to the pipeline. Producer side (export) is a companion
-CLI responsibility, not this app.
+CLI responsibility, not this app: `tools/qr-export` (plain JVM, dev plan
+stage 7) reads a kubeconfig, strips `exec:`/`auth-provider` user blocks
+(the app rejects them anyway, human decision 2026-10-24), wraps the result
+in the `QrEnvelopeCodec` envelope and emits chunks via `QrChunkCodec` —
+sharing the app's actual codec sources, not a reimplementation. CLI:
+`kubedroid-qr <kubeconfig> [--chunks|--png DIR] [--max-chars N]`.
 
 ## Secure storage
 
@@ -184,6 +189,12 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
 | `androidx.datastore:datastore-preferences` | 1.3.0 | cluster metadata registry |
 | `androidx.compose.material:material-icons-core` | (BOM) | `Icons.Filled.Refresh/Warning` |
 | `com.squareup.okhttp3:mockwebserver` | 5.4.0 | test only; must match the OkHttp 5.4.0 that client-java 27.0.0 resolves |
+| `com.google.zxing:core` | 3.5.4 | `tools/qr-export` only (QR encoding for terminal/PNG output); never in the APK |
+
+`tools/qr-export` is a plain-JVM Gradle project that shares the app's real
+sources (`QrChunkCodec`, `QrEnvelopeCodec`, `KubeconfigParser`, models) via
+`srcDir` rather than copying them, so it reuses the pins above (snakeyaml 2.5,
+kotlinx-serialization 1.9.0, kotlin 2.4.21) plus zxing.
 
 client-java Android caveats (resolved during dev-plan stage 1, 2026-10-24):
 `./gradlew build` is green with no core library desugaring (`ClientJavaSpikeTest`
@@ -271,8 +282,13 @@ gone and `files/connections` empty; exec kubeconfig ⇒ inline
 `uses an exec credential plugin` error with zero stub traffic and no
 blob. Emulator camera injection is not used: the QR *scan* path is
 covered at codec level (`QrChunkCodecTest`, `QrEnvelopeCodecTest`) plus
-the chunk-progress UI; live scanning is validated on a physical device
-together with `tools/qr-export` (stage 7).
+the chunk-progress UI. Stage 7 closed the export→scan loop automatically
+in `tools/qr-export` tests: a fixture kubeconfig goes through the real
+stripper → `QrEnvelopeCodec` → `QrChunkCodec` chunks → the app's
+`QrChunkCodec.Decoder` fed strictly in order → `QrEnvelopeCodec.decode` →
+app `KubeconfigParser` must return Valid with no exec/auth-provider
+(plus a zxing render→re-decode test per chunk). Physical camera scan
+remains a manual check on a real device.
 
 ## Acceptance criteria
 
