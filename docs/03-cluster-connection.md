@@ -174,11 +174,14 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
 | `androidx.camera:camera-compose` | 1.6.2 | preview in Compose |
 | `androidx.datastore:datastore-preferences` | 1.3.0 | cluster metadata registry |
 
-client-java Android caveats (verified during stage 1 below before further
-UI work): minSdk 26 OK; watch for `java.time`/`javax.activation` transitive
-needs — add `core library desugaring` (`com.android.tools:desugar_jdk_libs`)
-only if the build proves it necessary, and record that addition as an
-amendment. ProGuard/R8: release builds add keep rules for Gson-serialized
+client-java Android caveats (resolved during dev-plan stage 1, 2026-10-24):
+`./gradlew build` is green with no core library desugaring (`ClientJavaSpikeTest`
+constructs/configures `ApiClient` under unit tests). Two transitive groups are
+excluded in `build.gradle.kts` because kubedroid never reaches them: `io.netty`
+(Exec/PortForwarder only) and `software.amazon.awssdk` (EKS get-token — an
+exec-style auth this spec declares a non-goal). `packaging.resources.excludes`
+drops duplicate `META-INF` license/INDEX files from the remaining Google auth
+transitives. ProGuard/R8: release builds add keep rules for Gson-serialized
 models; debug builds unaffected.
 
 ## Configuration

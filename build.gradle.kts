@@ -31,6 +31,27 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    packaging {
+        resources {
+            // META-INF duplicates from client-java's auth transitives.
+            excludes += setOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/LICENSE.md",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/NOTICE.md",
+                "META-INF/*ThirdParty-LICENSE",
+                "META-INF/*.version",
+                "META-INF/native-image/**",
+                "META-INF/proguard/**",
+                "native-image.properties",
+            )
+        }
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -83,6 +104,17 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.serialization.json)
+
+    // spec 03: cluster connection management
+    implementation(libs.kubernetes.client.java) {
+        // client-java drags netty in only for Exec/PortForwarder, and the
+        // AWS SDK only for EKS get-token — both are exec-style auth that
+        // spec 03 declares non-goals, so kubedroid never reaches them.
+        exclude(group = "io.netty")
+        exclude(group = "software.amazon.awssdk")
+    }
+    implementation(libs.snakeyaml)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     // Robolectric needs the test-manifest AAR (declares the ComponentActivity
