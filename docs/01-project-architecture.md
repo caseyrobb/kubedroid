@@ -1,11 +1,11 @@
 ---
-description: Defines kubedroid's layered unidirectional-data-flow architecture as built by specs 02-06 — package layout, key components, adaptive strategy, security posture, testing stack, and the remaining deferred areas.
+description: Defines kubedroid's layered unidirectional-data-flow architecture as built by specs 02-07 — package layout, key components, adaptive strategy, security posture, testing stack, and the remaining deferred areas.
 status: active
 ---
 
 # **Project Architecture**
 
-This doc describes the architecture **as built** by specs 02–06 (all active).
+This doc describes the architecture **as built** by specs 02–07 (all active).
 It supersedes the pre-build proposal; where the proposal anticipated shapes
 that were built differently (Fabric8, EncryptedSharedPreferences, watch),
 the built shape below is authoritative and the deltas are
@@ -42,13 +42,15 @@ com.neozeon.kubedroid
 │   ├── cluster/                       // ClusterListScreen/ViewModel, QrScannerDialog
 │   ├── resources/                     // Browse, ResourceList, ResourceDetail screens+VMs,
 │   │                                  //   ResourceScene (adaptive two-pane), SummaryRows
+│   ├── crd/                           // CrdListScreen/CrdListViewModel (spec 07)
 │   └── logs/                          // LogScreen/LogViewModel + LogNavPayloads (detail→viewer hand-off)
 ├── data/
 │   ├── model/                         // ClusterConnection; ResourceRef/ResourceRow/ResourceError (sealed,
 │   │                                  //   userMessage()), ResourceResult
 │   ├── kubernetes/                    // KubeconfigParser/Models, ApiClientProvider, TlsSupport,
-│   │                                  //   ResourceCatalog, ResourceGateway, LogGateway
-│   ├── repository/                    // ResourceRepository, LogRepository
+│   │                                  //   ResourceCatalog, CatalogResolver, CrdDiscovery,
+│   │                                  //   ResourceGateway, LogGateway
+│   ├── repository/                    // ResourceRepository, LogRepository, CrdRepository
 │   ├── local/                         // ClusterRepository, BlobStore, CipherVault (+Keystore impl), PayloadHash
 │   ├── registry/                      // ClusterRegistry interface + DataStoreClusterRegistry
 │   └── qr/                            // QrEnvelopeCodec / QrChunkCodec (chunked QR kubeconfig transfer)
@@ -81,6 +83,18 @@ project sharing app sources for the QR CLI) and `tools/acceptance/`
   `executeOnce` — never auto-retried (spec 06); `EditSanitizer` strips
   display-only fields, re-attaches the loaded `resourceVersion`, and guards
   the identity fields on the PUT body.
+* **CrdDiscovery / CatalogResolver / CrdRepository** (spec 07) — CRD
+  discovery fetches `customresourcedefinitions` through the same gateway
+  path, parses each CRD into a `CrdDefinition` (skip rules drop malformed
+  CRDs rather than failing discovery) and builds dynamic `CatalogEntry`
+  shapes so spec 04 list/detail and spec 06 edit/delete reuse them
+  unchanged. `CatalogResolver` is **static-first** (the built-in table
+  always wins key collisions) and caches definitions per connection
+  (in-memory, no TTL; manual Refresh re-fetches). Default served version =
+  storage if served else first served; chip switcher when >1 served.
+  Priority-0 `additionalPrinterColumns` render via a dotted-path evaluator
+  (`-` on missing paths). CRDs are read-only (no delete affordance —
+  human decision 2026-10-26); only CR instances mutate.
 * **ResourceRepository / LogRepository** — resolve the connection context,
   map HTTP/IO failures to the sealed `ResourceError` (with `userMessage()`
   copy; 403 distinguishes `pods` vs `pods/log` RBAC), enforce paging
@@ -99,14 +113,16 @@ project sharing app sources for the QR CLI) and `tools/acceptance/`
 ### **UI Layer**
 
 * **ViewModels** (Hilt, one per screen area): `ClusterListViewModel`,
-  `BrowseViewModel`, `ResourceListViewModel` (generation-guarded paging),
-  `ResourceDetailViewModel` (summary/YAML + Secret reveal + spec 06
-  edit/save/conflict/delete state),
+  `BrowseViewModel`, `ResourceListViewModel` (generation-guarded paging,
+  spec 07 served-version chips), `ResourceDetailViewModel` (summary/YAML +
+  Secret reveal + spec 06 edit/save/conflict/delete state),
+  `CrdListViewModel` (spec 07: discovery list, client-side name/shortName
+  filter, manual refresh),
   `LogViewModel` (stream lifecycle, ring buffer, save state machine).
 * **Navigation 3**: `NavDisplay` + user-owned `NavBackStack` of sealed
   `NavKey`s (`ClusterListKey`, `BrowseKey`, `ResourceListKey`,
-  `ResourceDetailKey`, `LogKey`) with `SavedState`-serializable args —
-  process death restores the stack.
+  `ResourceDetailKey`, `CrdListKey`, `LogKey`) with
+  `SavedState`-serializable args — process death restores the stack.
 * **Adaptive strategy**: `WindowSizeClassProvider` observes
   `currentWindowAdaptiveInfo()`; compact = single-pane push navigation;
   medium/expanded = `ResourceScene` list-detail two-pane with shared
@@ -114,10 +130,12 @@ project sharing app sources for the QR CLI) and `tools/acceptance/`
 
 ### **Data Flow Example (Resource List → Detail → Logs)**
 
-1. Grid (`BrowseScreen`) tap on Pods → `ResourceListKey`.
+1. Grid (`BrowseScreen`) tap on Pods → `ResourceListKey`; tap on the
+   spec 07 "Custom Resources" card → `CrdListKey` → `CrdListScreen` →
+   CRD row tap → `ResourceListKey` with the discovered apiVersion/resource.
 2. `ResourceListViewModel` → `ResourceRepository.list` → paged
    `ResourceResult` → `ResourceListUiState` (rows from `ResourceCatalog`
-   column config).
+   column config; discovered types resolve through `CatalogResolver`).
 3. Row tap → inline detail (medium+) or `ResourceDetailKey` push;
    `ResourceDetailViewModel` loads the unstructured object; Summary facts +
    `YamlRenderer` output (copy action; spec 06 adds the YAML **edit mode**:
@@ -184,9 +202,6 @@ git/file mirror only.
 
 ## **Deferred / not yet built** (proposal items, not dropped by decision)
 
-* **CRD discovery / CR listing** (`ui/crd`, `CrdRepository`) — in progress:
-  spec 07 (`docs/07-crd-discovery.md`, proposed 2026-10-26). Until it
-  activates, spec 04's static `ResourceCatalog` remains the only source.
 * **Watch** — lists are pull/paging only.
 * **Label/field selectors**, richer list columns.
 * Shared `ui/components/` extraction — screens currently inline their
@@ -204,7 +219,7 @@ git/file mirror only.
 
 ## **Suggested Implementation Order (original)**
 
-Kept for history; items 1–4 shipped as specs 02–05, items 5–7 remain open
+Kept for history; items 1–6 shipped as specs 02–07, item 7 remains open
 (see Deferred).
 
 1. Project skeleton + Hilt + Navigation 3 adaptive shell + theme. (spec 02)
@@ -212,5 +227,5 @@ Kept for history; items 1–4 shipped as specs 02–05, items 5–7 remain open
 3. Generic resource list + detail with YAML viewer. (spec 04)
 4. Pod logs. (spec 05)
 5. Edit / delete actions. (spec 06)
-6. CRD discovery and CR instance listing. (spec 07, proposed)
+6. CRD discovery and CR instance listing. (spec 07)
 7. Polish adaptive layouts and error states. (partly done in 04/05)

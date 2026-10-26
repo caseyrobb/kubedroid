@@ -1,6 +1,6 @@
 ---
 description: Dynamic discovery of CustomResourceDefinitions from the cluster and browsing of their custom resources — CRD list screen, CR lists with additionalPrinterColumns, dynamic catalog entries that flow through the spec 04 list/detail and spec 06 edit/delete paths unchanged.
-status: proposed
+status: active
 ---
 
 # Spec 07 — CRD discovery and custom resources
@@ -240,13 +240,24 @@ Stages are sequential; each ends green on the devbox gate
 1. **Stage 1 — amendments + discovery data layer**: apply the docs/04 and
    docs/01 amendments; `CrdDiscovery`, `PrinterColumnEvaluator`,
    `CatalogResolver`, `CrdRepository` + unit tests.
+   *Complete 2026-10-26 (`622ea5e`); 268 unit tests (+21).*
 2. **Stage 2 — CRD list UI**: `CrdListScreen`, navigation keys, Browse
    grid CUSTOM card, Compose tests.
+   *Complete 2026-10-26 (`8c26ba1`); 275 unit tests (+7).*
 3. **Stage 3 — dynamic CR browsing**: screens/repository move to
    `CatalogResolver`; CR list printer columns + version chips; CR detail
    Summary fallback; Compose tests.
+   *Complete 2026-10-26 (`18ba184`); 281 unit tests (+6).*
 4. **Stage 4 — acceptance**: stub CRD routes + fixtures, five `spec07-*`
    driver steps, full chain API 37 + 26.
+   *Complete 2026-10-26 (`19d0cf1`, fixes `7b16fc7`); ACCEPTANCE_PASS
+   46/46 on API 37 and API 26, zero failures. Activation findings: the
+   stub needs a GET-single-CR route or the CR Summary renders empty;
+   driver grid-scroll and SAF-picker dismissal need substring/resumed
+   matching (see acceptance tooling comments).*
 5. **Stage 5 — activation + hardware build**: flip `status: active`,
    docs/01 sync, commit/push, wiki milestone, then the installable APK
    hand-off.
+   *Complete 2026-10-26: activated with docs/01 synced to specs 02–07;
+   hardware APK built on the devbox and delivered to the GB10 for
+   real-device testing.*
