@@ -8,6 +8,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.neozeon.kubedroid.ui.cluster.ClusterListScreen
+import com.neozeon.kubedroid.ui.logs.LogScreen
 import com.neozeon.kubedroid.ui.resources.BrowseScreen
 import com.neozeon.kubedroid.ui.resources.ResourceDetailScreen
 import com.neozeon.kubedroid.ui.resources.ResourceScene
@@ -59,6 +60,12 @@ fun KubedroidApp() {
                     resource = key.resource,
                     onBack = { popBackStack(backStack) },
                     onOpenDetailStacked = { backStack.add(it) },
+                    // spec 05: Logs action from either detail surface opens the viewer.
+                    onOpenLogs = { d ->
+                        if (d.namespace != null) {
+                            backStack.add(LogKey(d.connectionId, d.namespace, d.name, null))
+                        }
+                    },
                 )
             }
             entry<ResourceDetailKey> { key ->
@@ -68,6 +75,19 @@ fun KubedroidApp() {
                     resource = key.resource,
                     namespace = key.namespace,
                     name = key.name,
+                    onBack = { popBackStack(backStack) },
+                    onOpenLogs = {
+                        if (key.namespace != null) {
+                            backStack.add(LogKey(key.connectionId, key.namespace, key.name, null))
+                        }
+                    },
+                )
+            }
+            entry<LogKey> { key ->
+                LogScreen(
+                    namespace = key.namespace,
+                    podName = key.podName,
+                    container = key.container,
                     onBack = { popBackStack(backStack) },
                 )
             }

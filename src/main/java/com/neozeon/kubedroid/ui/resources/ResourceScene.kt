@@ -35,6 +35,7 @@ fun ResourceScene(
     resource: String,
     onBack: () -> Unit,
     onOpenDetailStacked: (ResourceDetailKey) -> Unit,
+    onOpenLogs: (ResourceDetailKey) -> Unit = {},
     windowSizeClass: WindowSizeClass = currentKubedroidWindowSize(),
     listViewModel: @Composable () -> ResourceListViewModel = { hiltViewModel() },
     detailViewModel: @Composable (ResourceDetailKey) -> ResourceDetailViewModel = { hiltViewModel() },
@@ -75,6 +76,7 @@ fun ResourceScene(
                 name = detail.name,
                 viewModel = detailViewModel(detail),
                 onBack = { selected = null },
+                onOpenLogs = { onOpenLogs(detail) },
                 modifier = Modifier
                     .weight(0.58f)
                     .fillMaxHeight(),

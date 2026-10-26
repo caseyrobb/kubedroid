@@ -53,11 +53,13 @@ fun ResourceDetailScreen(
     name: String,
     viewModel: ResourceDetailViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onOpenLogs: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
     val entry = ResourceCatalog.find(apiVersion, resource)
     val isSecret = entry?.kind == "Secret"
+    val isPod = entry?.kind == "Pod"
     val clipboard = LocalClipboardManager.current
 
     LaunchedEffect(connectionId, apiVersion, resource, namespace, name) {
@@ -75,6 +77,12 @@ fun ResourceDetailScreen(
                     }
                 },
                 actions = {
+                    // spec 05 amendment: Pods only — Logs opens the viewer.
+                    if (isPod && state.obj != null) {
+                        TextButton(onClick = onOpenLogs, modifier = Modifier.testTag("open-logs")) {
+                            Text("Logs")
+                        }
+                    }
                     if (isSecret && state.obj != null && !state.revealed) {
                         TextButton(onClick = { viewModel.reveal() }, modifier = Modifier.testTag("reveal")) {
                             Text("Reveal")

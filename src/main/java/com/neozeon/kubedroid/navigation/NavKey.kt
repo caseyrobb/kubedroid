@@ -51,3 +51,13 @@ data class ResourceDetailKey(
     val namespace: String?,
     val name: String,
 ) : NavKey
+
+/** Pod log viewer (spec 05 "Navigation"); container nullable = auto-select. */
+@Serializable
+data class LogKey(
+    @Serializable(with = UuidAsStringSerializer::class)
+    val connectionId: UUID,
+    val namespace: String,
+    val podName: String,
+    val container: String?,
+) : NavKey

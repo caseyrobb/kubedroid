@@ -2,6 +2,7 @@ package com.neozeon.kubedroid.ui.resources
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -114,5 +115,46 @@ class ResourceDetailScreenTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("detail-error").assertIsDisplayed()
         composeRule.onNodeWithTag("detail-retry").assertIsDisplayed()
+    }
+
+    @Test fun podDetailShowsLogsActionAndInvokesCallback() {
+        // spec 05 amendment (stage 1): Pods only — Logs opens the viewer.
+        val h = ResourceTestHarness({ _, _ -> 200 to ResourceFixtures.pod("web-1") })
+        var opened = 0
+        composeRule.setContent {
+            KubedroidTheme {
+                ResourceDetailScreen(
+                    connectionId = h.connectionId,
+                    apiVersion = "v1",
+                    resource = "pods",
+                    namespace = "web",
+                    name = "web-1",
+                    viewModel = detailVm(h),
+                    onOpenLogs = { opened++ },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("open-logs").assertIsDisplayed()
+        composeRule.onNodeWithTag("open-logs").performClick()
+        assertTrue("Logs action must invoke onOpenLogs exactly once", opened == 1)
+    }
+
+    @Test fun logsActionAbsentForNonPodKinds() {
+        val h = ResourceTestHarness({ _, _ -> 200 to ResourceFixtures.secret() })
+        composeRule.setContent {
+            KubedroidTheme {
+                ResourceDetailScreen(
+                    connectionId = h.connectionId,
+                    apiVersion = "v1",
+                    resource = "secrets",
+                    namespace = "web",
+                    name = "db",
+                    viewModel = detailVm(h),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        assertTrue(composeRule.onAllNodesWithTag("open-logs").fetchSemanticsNodes().isEmpty())
     }
 }
