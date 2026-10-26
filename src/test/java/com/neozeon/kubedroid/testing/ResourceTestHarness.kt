@@ -28,15 +28,21 @@ import okhttp3.ResponseBody.Companion.toResponseBody
  */
 class ResourceTestHarness(
     private val handler: (path: String, query: String?) -> Pair<Int, String>,
+    /** Spec 06: request-aware override (method/body), used when non-null. */
+    private val requestHandler: ((okhttp3.Request) -> Pair<Int, String>)? = null,
 ) {
     val dir: File = kotlin.io.path.createTempDirectory("restest").toFile()
     val seen = mutableListOf<String>()
+    val seenRequests = mutableListOf<okhttp3.Request>()
 
     private val http = OkHttpClient.Builder()
         .addInterceptor(Interceptor { chain ->
             val request = chain.request()
-            synchronized(seen) { seen += request.url.encodedPath + "?" + request.url.encodedQuery }
-            val (code, body) = handler(request.url.encodedPath, request.url.encodedQuery)
+            synchronized(seen) {
+                seen += request.url.encodedPath + "?" + request.url.encodedQuery
+                seenRequests += request
+            }
+            val (code, body) = requestHandler?.invoke(request) ?: handler(request.url.encodedPath, request.url.encodedQuery)
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
                 .code(code).message("canned").body(body.toResponseBody(null)).build()
         })
@@ -86,8 +92,9 @@ class ResourceTestHarness(
 
 /** Common canned-JSON builders for spec 04 tests. */
 object ResourceFixtures {
-    fun pod(name: String, ns: String = "web", app: String? = null, phase: String = "Running") =
-        """{"metadata":{"name":"$name","namespace":"$ns",""" +
+    fun pod(name: String, ns: String = "web", app: String? = null, phase: String = "Running", rv: String? = null) =
+        """{"apiVersion":"v1","kind":"Pod","metadata":{"name":"$name","namespace":"$ns",""" +
+            (rv?.let { """"resourceVersion":"$it",""" } ?: "") +
             (app?.let { """"labels":{"app":"$it"},""" } ?: "") +
             """"creationTimestamp":"2026-01-01T00:00:00Z"},"spec":{"containers":[{"name":"c","image":"nginx"}]},"status":{"phase":"$phase","podIP":"10.42.0.7"}}"""
 
@@ -96,5 +103,5 @@ object ResourceFixtures {
             (cont?.let { """"continue":"$it"""" } ?: "") + """}}"""
 
     fun secret(ns: String = "web", name: String = "db") =
-        """{"metadata":{"name":"$name","namespace":"$ns","creationTimestamp":"2026-01-01T00:00:00Z"},"type":"Opaque","data":{"pw":"eA=="}}"""
+        """{"apiVersion":"v1","kind":"Secret","metadata":{"name":"$name","namespace":"$ns","creationTimestamp":"2026-01-01T00:00:00Z"},"type":"Opaque","data":{"pw":"eA=="}}"""
 }
