@@ -52,4 +52,23 @@ class SummaryRowsTest {
         assertEquals("•••• (7 bytes)", rows["data.pw"])
         assertEquals("YWRtaW4=", rows["data.user"])
     }
+
+    @Test fun crFallbackRowsCoverApiVersionKindAndTrueConditions() {
+        // spec 07 (Q4): generic Summary fallback for discovered CRs.
+        val obj = mapOf(
+            "apiVersion" to "example.com/v2",
+            "kind" to "Widget",
+            "metadata" to mapOf("name" to "w1", "namespace" to "web"),
+            "status" to mapOf(
+                "conditions" to listOf(
+                    mapOf("type" to "Ready", "status" to "True"),
+                    mapOf("type" to "Broken", "status" to "False"),
+                ),
+            ),
+        )
+        val rows = SummaryRows.build(obj).toMap()
+        assertEquals("example.com/v2", rows["apiVersion"])
+        assertEquals("Widget", rows["kind"])
+        assertEquals("Ready", rows["conditions"]) // only True types
+    }
 }

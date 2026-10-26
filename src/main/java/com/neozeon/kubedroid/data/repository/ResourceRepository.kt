@@ -27,6 +27,9 @@ import javax.inject.Singleton
 class ResourceRepository @Inject constructor(
     private val gateway: ResourceGateway,
     private val clusterRepository: ClusterRepository,
+    /** Spec 07: static table first, discovered CRD entries second. */
+    private val resolver: com.neozeon.kubedroid.data.kubernetes.CatalogResolver =
+        com.neozeon.kubedroid.data.kubernetes.CatalogResolver(),
 ) {
 
     private fun contextFor(connectionId: UUID): String? =
@@ -42,7 +45,7 @@ class ResourceRepository @Inject constructor(
         namespace: String?,
         continueToken: String? = null,
     ): ResourceResult<ResourcePage> {
-        val entry = ResourceCatalog.find(apiVersion, resource)
+        val entry = resolver.resolve(connectionId, apiVersion, resource)
             ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '$resource'"))
         val context = contextFor(connectionId) ?: return notFound(connectionId)
         return when (val r = gateway.list(connectionId, context, entry, namespace, continueToken = continueToken)) {
@@ -55,7 +58,7 @@ class ResourceRepository @Inject constructor(
 
     /** Detail fetch. Secret values are redacted unless [reveal] is true. */
     suspend fun detail(ref: ResourceRef, reveal: Boolean = false): ResourceResult<ResourceDetail> {
-        val entry = ResourceCatalog.find(ref.apiVersion, ref.resource)
+        val entry = resolver.resolve(ref.connectionId, ref.apiVersion, ref.resource)
             ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '${ref.resource}'"))
         val context = contextFor(ref.connectionId) ?: return notFound(ref.connectionId)
         return when (val r = gateway.get(ref.connectionId, context, entry, ref.namespace, ref.name ?: "")) {
@@ -92,7 +95,7 @@ class ResourceRepository @Inject constructor(
      * (identity-validated, status stripped, loaded resourceVersion attached).
      */
     suspend fun replace(ref: ResourceRef, edited: Map<String, Any?>): ResourceResult<Unit> {
-        val entry = ResourceCatalog.find(ref.apiVersion, ref.resource)
+        val entry = resolver.resolve(ref.connectionId, ref.apiVersion, ref.resource)
             ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '${ref.resource}'"))
         val context = contextFor(ref.connectionId) ?: return notFound(ref.connectionId)
         return when (
@@ -114,7 +117,7 @@ class ResourceRepository @Inject constructor(
      * `DeleteResult(existed = false)` (success), per spec 06 "Delete flow".
      */
     suspend fun delete(ref: ResourceRef): ResourceResult<DeleteResult> {
-        val entry = ResourceCatalog.find(ref.apiVersion, ref.resource)
+        val entry = resolver.resolve(ref.connectionId, ref.apiVersion, ref.resource)
             ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '${ref.resource}'"))
         val context = contextFor(ref.connectionId) ?: return notFound(ref.connectionId)
         return when (val r = gateway.delete(ref.connectionId, context, entry, ref.namespace, ref.name ?: "")) {

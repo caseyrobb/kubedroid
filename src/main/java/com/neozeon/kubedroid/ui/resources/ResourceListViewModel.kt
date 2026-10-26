@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
 class ResourceListViewModel @Inject constructor(
     private val repository: ResourceRepository,
     @ApplicationScope private val scope: CoroutineScope,
+    /** Spec 07: version chips for multi-version discovered CRDs (Q2). */
+    private val resolver: com.neozeon.kubedroid.data.kubernetes.CatalogResolver =
+        com.neozeon.kubedroid.data.kubernetes.CatalogResolver(),
 ) : ViewModel() {
 
     data class Target(
@@ -50,6 +53,9 @@ class ResourceListViewModel @Inject constructor(
         val deleting: Boolean = false,
         val deleteError: ResourceError? = null,
         val deleteInfo: String? = null,
+        // ---- spec 07: discovered-CRD version chips (empty for static types) ----
+        val versions: List<String> = emptyList(),
+        val selectedVersion: String? = null,
     ) {
         /** Client-side filter over name + label values (spec 04). */
         val visibleItems: List<ResourceSummary>
@@ -79,6 +85,7 @@ class ResourceListViewModel @Inject constructor(
     /** Called from the screen's LaunchedEffect; no-op when already loaded. */
     fun open(target: Target) {
         if (_state.value.target == target && _state.value.items.isNotEmpty()) return
+        _state.update { it.copy(versions = servedVersions(target), selectedVersion = target.apiVersion.substringAfterLast('/')) }
         fetch(target, _state.value.namespace)
         if (_state.value.namespaces.isEmpty() && _state.value.target?.resource != "namespaces") {
             scope.launch {
@@ -105,6 +112,24 @@ class ResourceListViewModel @Inject constructor(
     fun refresh() {
         val target = _state.value.target ?: return
         fetch(target, _state.value.namespace)
+    }
+
+    // ---- spec 07: served-version switch for discovered CRDs (Q2) ----
+
+    private fun servedVersions(target: Target): List<String> =
+        resolver.definition(target.connectionId, target.apiVersion, target.resource)
+            ?.servedVersions
+            ?.takeIf { it.size > 1 }
+            ?: emptyList()
+
+    /** Version-chip tap: re-fetch the same type at another served version. */
+    fun selectVersion(version: String) {
+        val target = _state.value.target ?: return
+        if (version == _state.value.selectedVersion) return
+        val group = target.apiVersion.substringBeforeLast('/', "")
+        val newTarget = target.copy(apiVersion = if (group.isEmpty()) version else "$group/$version")
+        _state.update { it.copy(selectedVersion = version, items = emptyList(), continueToken = null, error = null) }
+        fetch(newTarget, _state.value.namespace)
     }
 
     // ---- spec 06: delete from the list row overflow ----

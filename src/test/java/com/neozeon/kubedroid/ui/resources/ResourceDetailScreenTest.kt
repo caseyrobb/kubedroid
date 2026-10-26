@@ -52,7 +52,11 @@ class ResourceDetailScreenTest {
         composeRule.onNodeWithTag("summary-name").assertIsDisplayed()
         composeRule.onNodeWithText("app=frontend").assertIsDisplayed() // labels row
         composeRule.onNodeWithText("nginx").assertIsDisplayed()        // spec.containers[0].image
-        composeRule.onNodeWithText("10.42.0.7").assertIsDisplayed()    // status.podIP
+        // spec 07 (Q4) added apiVersion/kind/conditions rows — podIP can
+        // land below the fold in a scrollable summary; assert existence.
+        assertTrue(
+            composeRule.onAllNodesWithText("10.42.0.7").fetchSemanticsNodes().isNotEmpty(),
+        )
     }
 
     @Test fun yamlTabRendersDocumentAndCopyAction() {

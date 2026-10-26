@@ -19,7 +19,16 @@ object SummaryRows {
         meta?.get("name")?.let { rows += "name" to it.toString() }
         meta?.get("namespace")?.let { rows += "namespace" to it.toString() }
         meta?.get("creationTimestamp")?.let { rows += "created" to it.toString() }
+        // Spec 07 (Q4): the generic fallback set for discovered CRs also
+        // serves built-in types — apiVersion/kind header facts, and the
+        // condition types currently True.
+        (obj["apiVersion"] as? String)?.let { rows += "apiVersion" to it }
+        (obj["kind"] as? String)?.let { rows += "kind" to it }
         (obj["type"] as? String)?.let { rows += "type" to it } // Secrets
+        val conditions = (obj["status"] as? Map<*, *>)?.get("conditions") as? List<*>
+        conditions?.mapNotNull { raw ->
+            (raw as? Map<*, *>)?.takeIf { it["status"] == "True" }?.get("type")?.toString()
+        }?.filterNotNull()?.takeIf { it.isNotEmpty() }?.let { rows += "conditions" to it.joinToString(", ") }
         if (!labels.isNullOrEmpty()) {
             rows += "labels" to labels.entries.joinToString(", ") { "${it.key}=${it.value}" }
         }

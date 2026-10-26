@@ -56,6 +56,9 @@ class ResourceTestHarness(
             Resolved("http://fake", http)
     }
 
+    /** Spec 07: shared resolver so discovery publishes what screens resolve. */
+    val catalogResolver = com.neozeon.kubedroid.data.kubernetes.CatalogResolver()
+
     val repository: ResourceRepository
 
     /** Spec 07: discovery repository over the same canned gateway. */
@@ -87,9 +90,9 @@ class ResourceTestHarness(
                 else -> error("fixture cluster rejected: $r")
             }
         }
-        repository = ResourceRepository(gateway, clusterRepo)
+        repository = ResourceRepository(gateway, clusterRepo, catalogResolver)
         crdRepository = com.neozeon.kubedroid.data.repository.CrdRepository(
-            gateway, clusterRepo, com.neozeon.kubedroid.data.kubernetes.CatalogResolver(),
+            gateway, clusterRepo, catalogResolver,
         )
     }
 

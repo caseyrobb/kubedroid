@@ -139,6 +139,26 @@ fun ResourceListScreen(
                     .testTag("search"),
             )
 
+            // spec 07 (Q2): served-version chips for multi-version discovered
+            // CRDs only — static types and single-version CRDs show nothing.
+            if (state.versions.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .testTag("version-chips"),
+                ) {
+                    state.versions.forEach { v ->
+                        TextButton(
+                            onClick = { viewModel.selectVersion(v) },
+                            modifier = Modifier.testTag("version-$v"),
+                        ) {
+                            Text(if (v == state.selectedVersion) "• $v" else v)
+                        }
+                    }
+                }
+            }
+
             // spec 06 "Delete flow": banners ABOVE the when — the content
             // branches use fillMaxSize(), anything after them is clipped off
             // screen (found by the acceptance chain: the ForbiddenVerb row-

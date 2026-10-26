@@ -28,10 +28,14 @@ class CatalogResolver @Inject constructor() {
 
     private val cache = ConcurrentHashMap<UUID, Discovered>()
 
-    /** Static table wins; discovered entries fill the gaps. */
+    /** Static table wins; discovered entries fill the gaps. Any served
+     *  version resolves (version chips request non-default ones). */
     fun resolve(connectionId: UUID, apiVersion: String, resource: String): CatalogEntry? =
         ResourceCatalog.find(apiVersion, resource)
             ?: cache[connectionId]?.entries?.get(apiVersion to resource)
+            ?: definition(connectionId, apiVersion, resource)?.let {
+                CrdDiscovery.entry(it, apiVersion.substringAfterLast('/'))
+            }
 
     /** Definition backing a discovered entry (version chips, stage 3). */
     fun definition(connectionId: UUID, apiVersion: String, resource: String): CrdDefinition? {
