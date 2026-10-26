@@ -41,6 +41,13 @@ data class ResourceListKey(
     val resource: String,
 ) : NavKey
 
+/** Discovered CRD list for one connection (spec 07 "CrdListScreen"). */
+@Serializable
+data class CrdListKey(
+    @Serializable(with = UuidAsStringSerializer::class)
+    val connectionId: UUID,
+) : NavKey
+
 /** Object detail (spec 04 "ResourceDetailScreen"); cluster-scope objects have no namespace. */
 @Serializable
 data class ResourceDetailKey(

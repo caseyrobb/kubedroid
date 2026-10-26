@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.neozeon.kubedroid.data.kubernetes.ApiClientProvider
@@ -108,6 +109,32 @@ class BrowseScreenTest {
         assertEquals("pods", opened?.resource)
         assertEquals("v1", opened?.apiVersion)
         assertEquals(id, opened?.connectionId)
+    }
+
+    @Test fun customResourcesCardOpensCrdList() {
+        // spec 07 stage 2: the Browse grid gains exactly one CUSTOM card.
+        val (repository, id) = seededRepository()
+        var crdsOpened = 0
+        val vm = BrowseViewModel(repository)
+        composeRule.setContent {
+            KubedroidTheme {
+                BrowseScreen(
+                    connectionId = id,
+                    viewModel = vm,
+                    onOpenCrds = { crdsOpened++ },
+                )
+            }
+        }
+        // CUSTOM sits after ~25 static cards in the LazyVerticalGrid: it is
+        // not composed until scrolled to (off-screen = absent, not clipped).
+        val staticItems = com.neozeon.kubedroid.data.kubernetes.ResourceCatalog
+            .byGroup.values.sumOf { it.size } +
+            com.neozeon.kubedroid.data.kubernetes.ResourceCatalog.byGroup.count { it.value.isNotEmpty() }
+        composeRule.onNode(androidx.compose.ui.test.hasScrollToIndexAction())
+            .performScrollToIndex(staticItems + 1) // custom header + card: card is last
+        composeRule.onNodeWithTag("group-CUSTOM").assertIsDisplayed()
+        composeRule.onNodeWithTag("custom-resources-card").performClick()
+        assertEquals(1, crdsOpened)
     }
 
     @Test fun unknownConnectionIdDegradesToGenericTitle() {

@@ -8,6 +8,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.neozeon.kubedroid.ui.cluster.ClusterListScreen
+import com.neozeon.kubedroid.ui.crd.CrdListScreen
 import com.neozeon.kubedroid.ui.logs.LogScreen
 import com.neozeon.kubedroid.ui.resources.BrowseScreen
 import com.neozeon.kubedroid.ui.resources.ResourceDetailScreen
@@ -51,6 +52,17 @@ fun KubedroidApp() {
                     connectionId = key.connectionId,
                     onBack = { popBackStack(backStack) },
                     onOpenType = { backStack.add(it) },
+                    // spec 07: Custom Resources card -> discovered CRD list.
+                    onOpenCrds = { backStack.add(CrdListKey(key.connectionId)) },
+                )
+            }
+            entry<CrdListKey> { key ->
+                CrdListScreen(
+                    connectionId = key.connectionId,
+                    onBack = { popBackStack(backStack) },
+                    onOpenCr = { apiVersion, resource ->
+                        backStack.add(ResourceListKey(key.connectionId, apiVersion, resource))
+                    },
                 )
             }
             entry<ResourceListKey> { key ->

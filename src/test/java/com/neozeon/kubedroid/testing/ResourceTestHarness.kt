@@ -58,6 +58,9 @@ class ResourceTestHarness(
 
     val repository: ResourceRepository
 
+    /** Spec 07: discovery repository over the same canned gateway. */
+    val crdRepository: com.neozeon.kubedroid.data.repository.CrdRepository
+
     /** The id the registry actually assigned — tests must target THIS id. */
     val connectionId: UUID
 
@@ -85,6 +88,9 @@ class ResourceTestHarness(
             }
         }
         repository = ResourceRepository(gateway, clusterRepo)
+        crdRepository = com.neozeon.kubedroid.data.repository.CrdRepository(
+            gateway, clusterRepo, com.neozeon.kubedroid.data.kubernetes.CatalogResolver(),
+        )
     }
 
     fun lastSeen(): String = synchronized(seen) { seen.last() }

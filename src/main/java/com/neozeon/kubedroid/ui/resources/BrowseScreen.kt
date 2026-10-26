@@ -46,6 +46,7 @@ fun BrowseScreen(
     viewModel: BrowseViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onOpenType: (ResourceListKey) -> Unit = {},
+    onOpenCrds: () -> Unit = {},
 ) {
     val connection by viewModel.connectionFor(connectionId).collectAsState()
 
@@ -80,7 +81,43 @@ fun BrowseScreen(
         ) {
             CatalogGroup.entries.forEach { group ->
                 val groupEntries = ResourceCatalog.byGroup[group].orEmpty()
-                if (groupEntries.isEmpty()) return@forEach
+                if (groupEntries.isEmpty() && group != CatalogGroup.CUSTOM) return@forEach
+                if (group == CatalogGroup.CUSTOM) {
+                    // Spec 07: one static card opening the discovered CRD
+                    // list; no per-CRD cards on the grid (CRD counts vary).
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "group-CUSTOM") {
+                        Text(
+                            group.display,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .padding(top = 8.dp, bottom = 2.dp)
+                                .testTag("group-CUSTOM"),
+                        )
+                    }
+                    item(key = "custom-resources-card") {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("custom-resources-card")
+                                .clickable(onClick = onOpenCrds),
+                        ) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    "Custom Resources",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    "Discovered from the cluster (CRDs)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    return@forEach
+                }
                 item(span = { GridItemSpan(maxLineSpan) }, key = "group-${group.name}") {
                     Text(
                         group.display,
