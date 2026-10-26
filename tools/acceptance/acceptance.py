@@ -784,8 +784,10 @@ def run_app_flow(ca_b64):
     # Follow: server streams a new line every second; assert one arrives live
     root = ui_dump_tree()
     tap_where(root, **{"content-desc": "Follow"})
-    got_follow = (has_text("kblog-follow-1", 25)
-                  and has_text("kblog-follow-2", 5))
+    # Timestamps are ON from the earlier step: match as substring of the
+    # prefixed row text ("2026-...Z kblog-follow-N").
+    got_follow = (has_text("kblog-follow-1", 25, substring=True)
+                  and has_text("kblog-follow-2", 5, substring=True))
     follow_req = [l for l in log_lines("pods/web-1/log") if "follow=true" in l]
     step("spec05-log-follow-append", got_follow and bool(follow_req),
          f"(follow_reqs={len(follow_req)})" if got_follow
@@ -803,7 +805,8 @@ def run_app_flow(ca_b64):
             time.sleep(1)
     adb("shell", "input", "keyevent", "4")  # cancel the picker
     time.sleep(2)
-    back_on_logs = has_text("kblog-tail-1", 10) or has_text("kblog-beta", 5)
+    back_on_logs = (has_text("kblog-tail-1", 10, substring=True)
+                    or has_text("kblog-beta", 5, substring=True))
     save_reqs = [l for l in log_lines("pods/web-1/log")
                  if "tailLines" not in l.split("Auth=")[0]]
     step("spec05-log-save-picker", picker and back_on_logs and not save_reqs,

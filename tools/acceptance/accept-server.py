@@ -82,22 +82,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _chunked_abort(self, lines):
-        """mid-stream drop: chunks land, then RST — client sees an IOException,
-        not a clean EOF (no terminating chunk)."""
+        """mid-stream drop: chunks land but the terminating chunk never comes;
+        the connection then closes cleanly (TLS close_notify + FIN). OkHttp's
+        chunked reader hits EOF mid-body -> ProtocolException (IOException)
+        -> Network error + buffer kept (spec 05 manual-retry decision).
+        NOTE: a hard RST (SO_LINGER 0) does NOT work behind `adb reverse` —
+        the tunnel swallows abrupt resets and the client blocks forever with
+        no exception (verified in the API-26 acceptance run)."""
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
         for ln in lines:
             self._write_chunk((ln + "\n").encode())
-        import socket as _socket
-        import struct as _struct
-        try:
-            self.request.setsockopt(
-                _socket.SOL_SOCKET, _socket.SO_LINGER, _struct.pack("ii", 1, 0))
-            self.request.close()  # RST mid-body
-        except OSError:
-            pass
+        self.wfile.flush()
+        self.close_connection = True  # finish() closes cleanly -> FIN EOF
 
     def _log(self, base, query):
         """/api/v1/namespaces/web/pods/<name>/log routes (spec 05).
