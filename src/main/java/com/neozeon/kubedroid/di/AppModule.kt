@@ -1,6 +1,7 @@
 package com.neozeon.kubedroid.di
 
 import android.content.Context
+import com.neozeon.kubedroid.data.kubernetes.RetryBackoff
 import com.neozeon.kubedroid.data.local.BlobStore
 import com.neozeon.kubedroid.data.local.CipherVault
 import com.neozeon.kubedroid.data.local.KeystoreCipherVault
@@ -19,6 +20,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -61,4 +63,10 @@ object AppModule {
     @Provides
     @Singleton
     fun wallClock(): WallClock = WallClock { TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis()) }
+
+    /** Retry backoff for ResourceGateway (spec 04 "Reliability"); tests inject their own. */
+    @Provides
+    @Singleton
+    fun retryBackoff(): RetryBackoff = RetryBackoff { delay(it) }
 }
+

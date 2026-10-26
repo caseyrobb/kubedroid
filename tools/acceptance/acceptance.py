@@ -412,8 +412,28 @@ def logcat_errors():
     return " | ".join(picked[-15:])[:1500]
 
 
+ENV = None
+SERVER_PROC = None
+
+
+def start_stub():
+    """(Re)launch the TLS stub; returns the Popen handle. LOG survives restarts."""
+    global SERVER_PROC
+    SERVER_PROC = subprocess.Popen(
+        [sys.executable, SERVER, str(PORT), LOG,
+         f"{WORK}/server-cert.pem", f"{WORK}/server-key.pem"],
+        env=ENV,
+    )
+    deadline = time.time() + 10
+    while time.time() < deadline and log_count("SERVER_START") == 0:
+        time.sleep(0.3)
+    return SERVER_PROC
+
+
 def main():
-    env = dict(os.environ, ANDROID_HOME=ANDROID_HOME, ANDROID_SDK_ROOT=ANDROID_HOME)
+    global ENV
+    ENV = dict(os.environ, ANDROID_HOME=ANDROID_HOME, ANDROID_SDK_ROOT=ANDROID_HOME)
+    env = ENV
 
     _, _, _, _, ca_b64 = make_certs()
     step("fixtures", True)
@@ -421,14 +441,7 @@ def main():
     # TLS stub
     if os.path.exists(LOG):
         os.remove(LOG)
-    server = subprocess.Popen(
-        [sys.executable, SERVER, str(PORT), LOG,
-         f"{WORK}/server-cert.pem", f"{WORK}/server-key.pem"],
-        env=env,
-    )
-    deadline = time.time() + 10
-    while time.time() < deadline and log_count("SERVER_START") == 0:
-        time.sleep(0.3)
+    server = start_stub()
     if not step("stub-server-started", log_count("SERVER_START") == 1):
         server.terminate()
         return finish()
@@ -457,7 +470,8 @@ def main():
     finally:
         adb("emu", "kill")
         emu.terminate()
-        server.terminate()
+        if SERVER_PROC is not None:
+            SERVER_PROC.terminate()
     return finish()
 
 
@@ -661,6 +675,117 @@ def run_app_flow(ca_b64):
         time.sleep(1)
     step("reprobe-after-restart", log_count("GET /version") > before,
          "(Keystore decrypt + ApiClient rebuild OK)")
+
+    # ---- spec 04: row tap browses; grid, list, infinite scroll, detail ----
+    root, row = wait_node(text="accept-east")
+    if row is not None:
+        x, y = center(row)
+        adb("shell", "input", "tap", str(x), str(y))
+    grid_root, pods_card = wait_node(text="Pods")
+    if not step("spec04-browse-grid", pods_card is not None,
+                "" if pods_card is not None else _dump_debug(ui_dump_tree())):
+        return
+
+    # tap the Pods card -> resource list backed by the canned stub
+    if pods_card is not None:
+        x, y = center(pods_card)
+        adb("shell", "input", "tap", str(x), str(y))
+    _, web1 = wait_node(text="web-1")
+    if not step("spec04-list-rows", web1 is not None,
+                "" if web1 is not None else _dump_debug(ui_dump_tree())):
+        return
+
+    # infinite scroll: swipe near the last row to trigger the continue fetch
+    if web1 is not None:
+        x, y = center(web1)
+        adb("shell", "input", "swipe", str(x), str(y + 60), str(x), str(y - 500), "300")
+    _, web3 = wait_node(text="web-3")
+    step("spec04-infinite-scroll", web3 is not None and
+         log_count("continue=PAGE2") >= 1,
+         f"(continue_hits={log_count('continue=PAGE2')}) "
+         "" if web3 is not None else _dump_debug(ui_dump_tree()))
+
+    # tap web-1 -> Summary shows status facts; YAML tab renders the doc
+    _, web1 = wait_node(text="web-1")
+    if web1 is not None:
+        x, y = center(web1)
+        adb("shell", "input", "tap", str(x), str(y))
+    _, ip = wait_node(text="10.42.0.7")
+    if not step("spec04-detail-summary", ip is not None,
+                "" if ip is not None else _dump_debug(ui_dump_tree())):
+        return
+    root = ui_dump_tree()
+    tap_where(root, text="YAML")
+    shown = False
+    deadline = time.time() + 15
+    while time.time() < deadline and not shown:
+        try:
+            r = ui_dump(retries=3)
+            shown = any("podIP" in (n.get("text") or "")
+                        for n in r.iter("node"))
+        except RuntimeError:
+            time.sleep(1)
+    step("spec04-detail-yaml", shown)
+
+    # back to grid (detail -> list -> grid), then Secrets -> 403 escape hatch
+    adb("shell", "input", "keyevent", "4")
+    time.sleep(1)
+    adb("shell", "input", "keyevent", "4")
+    time.sleep(1)
+    root, secrets_card = wait_node(text="Secrets")
+    if secrets_card is not None:
+        x, y = center(secrets_card)
+        adb("shell", "input", "tap", str(x), str(y))
+    shown = False
+    deadline = time.time() + 20
+    while time.time() < deadline and not shown:
+        try:
+            r = ui_dump(retries=3)
+            shown = any("do not have permission" in (n.get("text") or "")
+                        for n in r.iter("node"))
+        except RuntimeError:
+            time.sleep(1)
+    step("spec04-forbidden-escape", shown,
+         "" if shown else _dump_debug(ui_dump_tree()))
+
+    # ---- network failure + retry recovery (spec 04 acceptance criteria) ----
+    SERVER_PROC.terminate()
+    try:
+        SERVER_PROC.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        SERVER_PROC.kill()
+    root = ui_dump_tree()
+    tap_where(root, text="Retry")  # the Forbidden state's retry; re-GET now hits dead stub
+    shown = False
+    deadline = time.time() + 40  # give OkHttp its retry budget + backoff to fail
+    while time.time() < deadline and not shown:
+        try:
+            r = ui_dump(retries=3)
+            shown = any("Could not reach the cluster" in (n.get("text") or "")
+                        for n in r.iter("node"))
+        except RuntimeError:
+            time.sleep(1)
+    step("spec04-network-error", shown,
+         "" if shown else _dump_debug(ui_dump_tree()))
+    start_stub()
+    root = ui_dump_tree()
+    tap_where(root, text="Retry")
+    recovered = False
+    deadline = time.time() + 30
+    while time.time() < deadline and not recovered:
+        try:
+            r = ui_dump(retries=3)
+            recovered = any("do not have permission" in (n.get("text") or "")
+                            for n in r.iter("node"))
+        except RuntimeError:
+            time.sleep(1)
+    step("spec04-network-recovered", recovered,
+         f"(secrets_hits={log_count('/api/v1/secrets')})"
+         if recovered else _dump_debug(ui_dump_tree()))
+    # back: secrets-list -> grid -> cluster list (delete flow needs the row)
+    for _ in range(2):
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
 
     # ---- delete ----
     root, row = wait_node(text="accept-east")

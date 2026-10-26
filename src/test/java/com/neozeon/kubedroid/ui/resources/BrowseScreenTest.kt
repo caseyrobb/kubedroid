@@ -72,31 +72,54 @@ class BrowseScreenTest {
     @Test fun rendersConnectionDisplayNameAndContext() {
         val (repository, id) = seededRepository()
         var backCount = 0
+        val vm = BrowseViewModel(repository)
         composeRule.setContent {
             KubedroidTheme {
                 BrowseScreen(
                     connectionId = id,
-                    viewModel = BrowseViewModel(repository),
+                    viewModel = vm,
                     onBack = { backCount++ },
                 )
             }
         }
         composeRule.onNodeWithText("Chaos · prod-east").assertIsDisplayed()
-        composeRule.onNodeWithText("Resource browsing lands here (spec 04, stages 2-4)")
-            .assertIsDisplayed()
+        // spec 04 stage 4: real catalog grid replaced the stage-1 placeholder
+        composeRule.onNodeWithTag("resource-grid").assertIsDisplayed()
+        composeRule.onNodeWithText("Pods").assertIsDisplayed()
+        composeRule.onNodeWithTag("group-WORKLOADS").assertIsDisplayed()
         composeRule.onNodeWithTag("browse-back").performClick()
         assertEquals(1, backCount)
+    }
+
+    @Test fun typeCardOpensResourceList() {
+        val (repository, id) = seededRepository()
+        var opened: com.neozeon.kubedroid.navigation.ResourceListKey? = null
+        val vm = BrowseViewModel(repository)
+        composeRule.setContent {
+            KubedroidTheme {
+                BrowseScreen(
+                    connectionId = id,
+                    viewModel = vm,
+                    onOpenType = { opened = it },
+                )
+            }
+        }
+        composeRule.onNodeWithTag("type-v1/pods").performClick()
+        assertEquals("pods", opened?.resource)
+        assertEquals("v1", opened?.apiVersion)
+        assertEquals(id, opened?.connectionId)
     }
 
     @Test fun unknownConnectionIdDegradesToGenericTitle() {
         // spec 04 stage 1: deleted/unknown connection must never crash the
         // browse screen (row can vanish while this entry is on the stack).
         val (repository, _) = seededRepository()
+        val vm = BrowseViewModel(repository)
         composeRule.setContent {
             KubedroidTheme {
                 BrowseScreen(
                     connectionId = java.util.UUID.randomUUID(),
-                    viewModel = BrowseViewModel(repository),
+                    viewModel = vm,
                 )
             }
         }

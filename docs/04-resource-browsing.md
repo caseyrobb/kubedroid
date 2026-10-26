@@ -244,20 +244,36 @@ Every layer is pure-Kotlin-testable; Robolectric + Compose for UI:
   length = decoded byte count; reveal returns base64-decoded UTF-8 exactly
   once and renders `<binary, n bytes>` for non-UTF-8 payloads); namespace list
   caching + refresh.
-* ViewModel tests (Robolectric, fake repository): initial load, refresh,
+* ViewModel tests (`ResourceViewModelTest`, canned gateway via
+  `testing/ResourceTestHarness`): initial load, refresh,
   search filtering (name + labels), namespace switch cancels and replaces,
   end-of-list scroll appends the next page and keeps search filter, error
   states surface per type (403 message includes namespace scope),
-  stale-response drop.
-* Compose tests: grid → list → detail happy path with tags; tab switch renders
-  YAML text; Secret row masked then revealed; Forbidden message renders.
+  stale-response drop. Search is an in-memory filter over the loaded window
+  and applies immediately — the 300 ms debounce in the Configuration table
+  only targets network queries, of which there are none (human decision
+  2026-10-25 refinement).
+* `YamlRendererTest`, `SummaryRowsTest`: YAML normalisation (Integer not
+  Double, redacted placeholders, no long-scalar wrapping) and Summary row
+  derivation.
+* Compose tests (`ResourceListScreenTest`, `ResourceDetailScreenTest`,
+  `ResourceSceneTest`, `BrowseScreenTest`): grid → list → detail happy path
+  with tags; tab switch renders YAML text; Secret row masked then revealed;
+  Forbidden message + namespace hint render; compact vs medium/expanded
+  Scene strategy (stacked vs side-by-side).
 * Acceptance (`tools/acceptance`, extends the existing driver): the TLS stub
-  gains canned GET responses (`/api/v1/namespaces`, `/api/v1/pods`,
-  `/apis/apps/v1/deployments`, one Secret, one canned 403 route). New steps:
-  `browse-grid-visible`, `pods-list-visible`, `search-filters-rows`,
-  `detail-yaml-visible`, `secret-values-redacted` — driven on API 37 first,
-  then API 26, on top of the spec 03 fixture import. The stub still requires
-  the acceptance bearer token on every route (including the new canned ones).
+  gained canned GET responses (`/api/v1/namespaces`, `/api/v1/pods` two-page
+  with `continue`, `/apis/apps/v1/deployments`, one Secret, one canned 403
+  route). New steps on top of the spec 03 fixture import:
+  `spec04-browse-grid`, `spec04-list-rows`, `spec04-infinite-scroll`
+  (asserts the `continue=PAGE2` hit in the stub log), `spec04-detail-summary`
+  (status.podIP visible), `spec04-detail-yaml`, `spec04-forbidden-escape`
+  (403 message + hint), `spec04-network-error` + `spec04-network-recovered`
+  (stub killed → retry shows Network message; stub restarted → retry recovers,
+  asserted on fresh stub-log hits). Search filtering and Secret reveal are
+  covered by the Robolectric tests above rather than adb driving. The stub
+  still requires the acceptance bearer token on every route (including the
+  new canned ones).
 
 ## Acceptance criteria
 

@@ -26,6 +26,54 @@ def log(line):
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    # ---- spec 04 canned payloads (paths matched without query string) ----
+    @staticmethod
+    def _pods(items, cont=None):
+        meta = '{"continue": "%s"}' % cont if cont else "{}"
+        return ('{"items":[%s],"metadata":%s}' % (",".join(items), meta)).encode()
+
+    @staticmethod
+    def _pod(name, phase="Running", ip="10.42.0.7"):
+        return (
+            '{"metadata":{"name":"%s","namespace":"web","labels":{"app":"frontend"},'
+            '"creationTimestamp":"2026-01-01T00:00:00Z"},'
+            '"spec":{"containers":[{"name":"c","image":"nginx"}]},'
+            '"status":{"phase":"%s","podIP":"%s"}}' % (name, phase, ip)
+        )
+
+    def _resource(self, path):
+        """Return (code, body) for spec 04 canned routes, or None."""
+        base = path.split("?")[0]
+        query = path.split("?")[1] if "?" in path else ""
+        if base == "/api/v1/namespaces":
+            body = self._pods([
+                '{"metadata":{"name":"default","creationTimestamp":"2026-01-01T00:00:00Z"}}',
+                '{"metadata":{"name":"kube-system","creationTimestamp":"2026-01-01T00:00:00Z"}}',
+            ])
+            return 200, body
+        if base == "/api/v1/secrets":
+            return 403, b'{"message":"secrets is forbidden"}'  # 403 escape-hatch route
+        if base == "/api/v1/namespaces/web/secrets/db":
+            return 200, (
+                '{"metadata":{"name":"db","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
+                '"type":"Opaque","data":{"pw":"eA=="}}'
+            ).encode()
+        if base == "/apis/apps/v1/deployments":
+            return 200, self._pods([
+                '{"metadata":{"name":"web","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
+                '"spec":{"replicas":2},"status":{"readyReplicas":2}}',
+            ])
+        if base == "/api/v1/pods":
+            if "continue=PAGE2" in query:
+                return 200, self._pods([self._pod("web-3", phase="Running")])
+            return 200, self._pods(
+                [self._pod("web-1"), self._pod("web-2", phase="Pending")], cont="PAGE2",
+            )
+        if base.startswith("/api/v1/namespaces/web/pods/"):
+            name = base.rsplit("/", 1)[-1]
+            return 200, self._pod(name).encode()
+        return None
+
     def do_GET(self):
         auth = self.headers.get("Authorization", "<none>")
         log(f"GET {self.path} Auth={auth}")
@@ -33,8 +81,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = b'{"major":"1","minor":"36","gitVersion":"v1.36.4"}'
             self.send_response(200)
         else:
-            body = b"{}"
-            self.send_response(404)
+            canned = self._resource(self.path)
+            if canned is not None:
+                code, body = canned
+                self.send_response(code)
+            else:
+                body = b"{}"
+                self.send_response(404)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()

@@ -31,3 +31,23 @@ data class BrowseKey(
     @Serializable(with = UuidAsStringSerializer::class)
     val connectionId: UUID,
 ) : NavKey
+
+/** Resource list for one type (spec 04 "ResourceListScreen"). */
+@Serializable
+data class ResourceListKey(
+    @Serializable(with = UuidAsStringSerializer::class)
+    val connectionId: UUID,
+    val apiVersion: String,
+    val resource: String,
+) : NavKey
+
+/** Object detail (spec 04 "ResourceDetailScreen"); cluster-scope objects have no namespace. */
+@Serializable
+data class ResourceDetailKey(
+    @Serializable(with = UuidAsStringSerializer::class)
+    val connectionId: UUID,
+    val apiVersion: String,
+    val resource: String,
+    val namespace: String?,
+    val name: String,
+) : NavKey
