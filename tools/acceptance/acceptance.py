@@ -1093,6 +1093,83 @@ def run_app_flow(ca_b64):
     # back: list -> grid, then Secrets -> 403 escape hatch
     adb("shell", "input", "keyevent", "4")
     time.sleep(1)
+
+    # ---- spec 07: CRD discovery + CR browsing (Q1-Q6) ---------------------
+    def scroll_grid_until(text, timeout=25):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if has_text(text, timeout=2):
+                return True
+            adb("shell", "input", "swipe", "540", "1300", "540", "400", "400")
+            time.sleep(0.6)
+        return False
+
+    card = scroll_grid_until("Discovered from the cluster")
+    root = ui_dump_tree()
+    tap_where(root, text="Discovered from the cluster (CRDs)")
+    opened_crd_list = has_text("widgets.example.com", 25)
+    step("spec07-browse-card", card and opened_crd_list,
+         f"(card={card} opened={opened_crd_list})" if not (card and opened_crd_list)
+         else "")
+
+    crd_rows = opened_crd_list and has_text("clusters.stable.example.com", 10)
+    malformed_skipped = not has_text("broken.example.com", timeout=2)
+    step("spec07-crd-list", crd_rows and malformed_skipped,
+         f"(rows={crd_rows} malformed_skipped={malformed_skipped})"
+         if not (crd_rows and malformed_skipped) else _dump_debug(ui_dump_tree()))
+
+    root, wrow = wait_node(text="widgets.example.com")
+    if wrow is not None:
+        x, y = center(wrow)
+        adb("shell", "input", "tap", str(x), str(y))
+    crs_ok = has_text("wid-1", 25)
+    printer_ok = has_text("Active-wid-1", 20, substring=True)  # {.status.phase}
+    chips_ok = has_text("v1", 10)  # multi-version chip row (v1/v2)
+    step("spec07-cr-columns", crs_ok and printer_ok and chips_ok,
+         f"(rows={crs_ok} printer={printer_ok} chips={chips_ok})"
+         if not (crs_ok and printer_ok and chips_ok) else _dump_debug(ui_dump_tree()))
+
+    # edit the CR through the spec 06 path: replicas 3 -> 4
+    root, wid_row = wait_node(text="wid-1")
+    if wid_row is not None:
+        x, y = center(wid_row)
+        adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(1.5)
+    root = ui_dump_tree()
+    tap_where(root, text="YAML")
+    time.sleep(0.5)
+    root = ui_dump_tree()
+    tap_where(root, text="Edit")
+    deadline = time.time() + 15
+    while time.time() < deadline and editor_probe() is None:
+        time.sleep(0.5)
+    tap_editor()
+    CRDOC = ("apiVersion: example.com/v2\nkind: Widget\nmetadata:\n"
+             "  name: wid-1\n  namespace: web\n"
+             "spec:\n  replicas: 4\n  image: widget:2\n")
+    type_multiline(editor_probe, CRDOC)
+    root = ui_dump_tree()
+    tap_where(root, text="Save")
+    cr_saved = has_text("widget:2", 25, substring=True)
+    stw = stub_get("/__test__/stats/wid-1")
+    step("spec07-cr-detail-edit",
+         cr_saved and stw["puts"] == 1 and str(stw["rv"]) == "2001",
+         f"(saved={cr_saved} stats={stw})" if cr_saved else _dump_debug(ui_dump_tree()))
+
+    # CRD list 403: toggle via observation route, Refresh, expect the copy
+    for _ in range(2):  # detail -> cr list -> crd list
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+    stub_get("/__test__/crd403/on")
+    root = ui_dump_tree()
+    tap_where(root, **{"content-desc": "Refresh"})
+    crd_forbidden = has_text("customresourcedefinitions", 25, substring=True)
+    stub_get("/__test__/crd403/off")
+    step("spec07-crd-403", crd_forbidden,
+         "" if crd_forbidden else _dump_debug(ui_dump_tree()))
+    adb("shell", "input", "keyevent", "4")  # crd list -> grid (Secrets next)
+    time.sleep(1)
+
     root, secrets_card = wait_node(text="Secrets")
     if secrets_card is not None:
         x, y = center(secrets_card)

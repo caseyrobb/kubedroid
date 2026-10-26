@@ -74,6 +74,73 @@ class Handler(http.server.BaseHTTPRequestHandler):
     MUT_NAMES = ("web-1", "web-2", "web-multi", "web-drop", "web-nolog",
                  "web-protected")
 
+    # ---- spec 07 CRD discovery + CR mutable store --------------------------
+    CRD_403 = [False]  # toggled via /__test__/crd403/on|off for the 403 step
+    WIDGET_MUT: dict = {}
+    WIDGET_PUTS = {}
+    WIDGET_RV = {}
+    WIDGET_NAMES = ("wid-1", "wid-2")
+
+    @staticmethod
+    def _widget(name):
+        return {
+            "apiVersion": "example.com/v2", "kind": "Widget",
+            "metadata": {"name": name, "namespace": "web",
+                         "creationTimestamp": "2026-03-01T00:00:00Z"},
+            "spec": {"replicas": 3, "image": "widget:1"},
+            "status": {"phase": f"Active-{name}",
+                       "conditions": [{"type": "Ready", "status": "True"}]},
+        }
+
+    @classmethod
+    def _seed_widgets(cls):
+        if cls.WIDGET_MUT:
+            return
+        for i, name in enumerate(cls.WIDGET_NAMES):
+            body = cls._widget(name)
+            body["metadata"]["resourceVersion"] = str(2000 + i)
+            cls.WIDGET_MUT[name] = body
+            cls.WIDGET_RV[name] = 2000 + i
+
+    @staticmethod
+    def _crds():
+        widget_crd = {
+            "apiVersion": "apiextensions.k8s.io/v1",
+            "kind": "CustomResourceDefinition",
+            "metadata": {"name": "widgets.example.com",
+                         "creationTimestamp": "2026-03-01T00:00:00Z"},
+            "spec": {
+                "group": "example.com", "scope": "Namespaced",
+                "names": {"plural": "widgets", "kind": "Widget",
+                          "singular": "widget", "listKind": "WidgetList",
+                          "shortNames": ["wid"]},
+                "versions": [
+                    {"name": "v1", "served": True, "storage": False},
+                    {"name": "v2", "served": True, "storage": True,
+                     "additionalPrinterColumns": [
+                         {"name": "Replicas", "type": "integer",
+                          "jsonPath": "{.spec.replicas}"},
+                         {"name": "Phase", "type": "string",
+                          "jsonPath": "{.status.phase}"}]},
+                ],
+            },
+        }
+        cluster_crd = {
+            "apiVersion": "apiextensions.k8s.io/v1",
+            "kind": "CustomResourceDefinition",
+            "metadata": {"name": "clusters.stable.example.com",
+                         "creationTimestamp": "2026-03-01T00:00:00Z"},
+            "spec": {
+                "group": "stable.example.com", "scope": "Cluster",
+                "names": {"plural": "clusters", "kind": "Cluster",
+                          "listKind": "ClusterList"},
+                "versions": [{"name": "v1", "served": True, "storage": True}],
+            },
+        }
+        broken = {"metadata": {"name": "broken.example.com"},
+                  "spec": {"group": "example.com"}}  # must be skipped by app
+        return [widget_crd, broken, cluster_crd]
+
     @classmethod
     def _seed(cls):
         if cls.MUT:  # seeded once (MUT is never left empty after seeding)
@@ -113,6 +180,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_PUT(self):
         if not self._auth_ok("PUT"):
             return
+        # spec 07: CR PUT (widgets store) — same RV-precondition semantics.
+        if self.path.split("?")[0].startswith("/apis/example.com/v2/widgets/") or \
+                "/namespaces/web/widgets/" in self.path:
+            name = self.path.split("?")[0].rsplit("/", 1)[-1]
+            self._seed_widgets()
+            if name not in self.WIDGET_MUT:
+                return self._json(404, {"kind": "Status", "reason": "NotFound",
+                                        "code": 404, "message": "no such route"})
+            self.WIDGET_PUTS[name] = self.WIDGET_PUTS.get(name, 0) + 1
+            n = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(n) if n else b""
+            try:
+                body = json.loads(raw.decode())
+            except Exception:  # noqa: BLE001
+                return self._json(422, {"kind": "Status", "reason": "Invalid",
+                                        "code": 422, "message": "body is not valid JSON"})
+            want = self.WIDGET_RV[name]
+            if (body.get("metadata") or {}).get("resourceVersion") != str(want):
+                return self._json(409, {
+                    "kind": "Status", "reason": "Conflict", "code": 409,
+                    "message": "the object has been modified; please apply your "
+                               "changes to the latest version of the object"})
+            if not isinstance((body.get("spec") or {}).get("replicas"), int):
+                return self._json(422, {"kind": "Status", "reason": "Invalid",
+                                        "code": 422,
+                                        "message": "spec.replicas: Required value"})
+            body.setdefault("status", self.WIDGET_MUT[name].get("status"))
+            self.WIDGET_RV[name] = want + 1
+            body["metadata"]["resourceVersion"] = str(self.WIDGET_RV[name])
+            self.WIDGET_MUT[name] = body
+            log(f"CRD_PUT {name} rv={self.WIDGET_RV[name]} puts={self.WIDGET_PUTS[name]}")
+            return self._json(200, body)
         name = self._item_route()
         self._seed()
         n = int(self.headers.get("Content-Length", "0"))
@@ -291,6 +390,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if name == "web-multi":
                 return 200, self._pod_multi(name).encode()
             return 200, self._pod(name).encode()
+        # ---- spec 07: CRD discovery + CR routes ---------------------------
+        if base == "/apis/apiextensions.k8s.io/v1/customresourcedefinitions":
+            if self.CRD_403[0]:
+                return 403, b'{"message":"customresourcedefinitions is forbidden","code":403}'
+            return 200, self._pods([json.dumps(c) for c in self._crds()])
+        if ("widgets" in base
+                and (base.startswith("/apis/example.com/v1/")
+                     or base.startswith("/apis/example.com/v2/"))):
+            self._seed_widgets()
+            if "/widgets/" in base:  # single item by name
+                name = base.rsplit("/", 1)[-1]
+                if name in self.WIDGET_MUT:
+                    return 200, json.dumps(self.WIDGET_MUT[name]).encode()
+                return 404, json.dumps({"kind": "Status", "reason": "NotFound",
+                                        "code": 404}).encode()
+            return 200, self._pods(
+                [json.dumps(self.WIDGET_MUT[n]) for n in self.WIDGET_NAMES])
+        if base.startswith("/apis/stable.example.com/v1/clusters"):
+            item = {
+                "apiVersion": "stable.example.com/v1", "kind": "Cluster",
+                "metadata": {"name": "big", "creationTimestamp": "2026-03-01T00:00:00Z"},
+                "spec": {"location": "us-east", "nodes": 3},
+                "status": {"phase": "Bound"},
+            }
+            if base.endswith("/clusters"):
+                return 200, self._pods([json.dumps(item)])
+            return 200, json.dumps(item).encode()
         return None
 
     def do_GET(self):
@@ -315,10 +441,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             parts = self.path.split("/")  # ['', '__test__', verb, name]
             verb, name = parts[2], parts[3] if len(parts) > 3 else ""
             if verb == "stats":
+                self._seed_widgets()
+                if name in self.WIDGET_MUT:
+                    return self._json(200, {
+                        "puts": self.WIDGET_PUTS.get(name, 0),
+                        "rv": self.WIDGET_RV.get(name),
+                        "deleted": False})
                 return self._json(200, {
                     "puts": self.PUTS.get(name, 0),
                     "rv": self.RV.get(name),
                     "deleted": name in self.DELETED})
+            if verb == "crd403":  # spec 07: toggle CRD-list Forbidden
+                self.CRD_403[0] = name == "on"
+                return self._json(200, {"crd403": self.CRD_403[0]})
             if verb == "bump":  # simulate an out-of-band cluster edit (409)
                 if name in self.RV:
                     self.RV[name] += 1
