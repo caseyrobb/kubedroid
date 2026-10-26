@@ -13,6 +13,11 @@ enum class CatalogGroup(val display: String) {
     CONFIG("Config"),
     STORAGE("Storage"),
     CLUSTER("Cluster"),
+    // Spec 07: not a static table group — BrowseScreen renders the single
+    // "Custom Resources" card for it; the group exists so discovery shares
+    // the CatalogEntry shape (find() falls back to the resolver, screens
+    // keep one entry type).
+    CUSTOM("Custom Resources"),
 }
 
 /** List-row status produced by a catalog extractor. */

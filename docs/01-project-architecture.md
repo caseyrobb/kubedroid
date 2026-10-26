@@ -184,8 +184,9 @@ git/file mirror only.
 
 ## **Deferred / not yet built** (proposal items, not dropped by decision)
 
-* **CRD discovery / CR listing** (`ui/crd`, `CrdRepository`) — spec 04
-  deliberately pins core + apps/v1 types via `ResourceCatalog`.
+* **CRD discovery / CR listing** (`ui/crd`, `CrdRepository`) — in progress:
+  spec 07 (`docs/07-crd-discovery.md`, proposed 2026-10-26). Until it
+  activates, spec 04's static `ResourceCatalog` remains the only source.
 * **Watch** — lists are pull/paging only.
 * **Label/field selectors**, richer list columns.
 * Shared `ui/components/` extraction — screens currently inline their
@@ -211,5 +212,5 @@ Kept for history; items 1–4 shipped as specs 02–05, items 5–7 remain open
 3. Generic resource list + detail with YAML viewer. (spec 04)
 4. Pod logs. (spec 05)
 5. Edit / delete actions. (spec 06)
-6. CRD discovery and CR instance listing. (open)
+6. CRD discovery and CR instance listing. (spec 07, proposed)
 7. Polish adaptive layouts and error states. (partly done in 04/05)

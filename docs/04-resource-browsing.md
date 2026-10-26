@@ -1,5 +1,5 @@
 ---
-description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout. (Amended by spec 06, which adds edit/delete actions to these surfaces.)
+description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout. (Amended by spec 06, which adds edit/delete actions to these surfaces; amended by spec 07, which adds dynamic CRD-discovery entries resolved through CatalogResolver.)
 status: active
 ---
 
@@ -35,8 +35,9 @@ spec is **read-only**; mutation (edit/delete) and pod logs land in later specs.
 * Edit, delete, scale, restart (spec 05 — "Actions").
 * Pod logs / exec (spec 05+).
 * Watch / streaming / auto-refresh timers (later spec; manual refresh only).
-* CRD discovery and CR instances (later spec; the gateway design deliberately
-  pre-shapes this: catalog entries are just `apiVersion`/`resource`/namespaced).
+* CRD discovery and CR instances — **covered by spec 07** (2026-10-26):
+  discovery adds dynamic catalog entries through `CatalogResolver`; the
+  static table below is unchanged and always wins on key collisions.
 * Dynamic API discovery (`/apis`) as the source of the catalog — see Open Q1.
 * Metrics, dashboards, Helm, offline cache (stretch goals in 00).
 * RBAC-based UI hiding — errors are surfaced, not predicted (00 stretch list).
@@ -81,7 +82,12 @@ Rules:
   namespaced single-namespace inserts `/namespaces/{ns}` before the resource;
   omitted for "all namespaces" (cluster-scoped types never include it).
 * The catalog is frozen for this spec's Acceptance run; extensions belong to a
-  future spec amendment (CR instances especially).
+  future spec amendment (CR instances especially). *(Amended by spec 07:
+  dynamic CRD entries join at runtime — screens resolve entries through
+  `CatalogResolver.resolve(connectionId, apiVersion, resource)`, which
+  consults this static table first, then the per-connection discovered-CRD
+  cache; the gateway and list/detail/edit/delete paths are entry-shape
+  agnostic, so discovered CRs reuse them unchanged.)*
 
 ## Data layer
 
@@ -121,7 +127,9 @@ client-java API classes; one OkHttp call shape for every resource):
 
 ### `ResourceRepository` (`data/repository`)
 
-* Owns catalog lookup, gateway calls, error mapping, **Secret redaction**, and
+* Owns catalog lookup (via `CatalogResolver` since spec 07 — static entries
+  first, discovered CRD entries second), gateway calls, error mapping,
+  **Secret redaction**, and
   the namespace list (`GET /api/v1/namespaces`, cached per connection while
   the browse screen is alive).
 * Redaction runs in the repository (not the UI) so no path can leak values by

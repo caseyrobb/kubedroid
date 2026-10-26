@@ -51,6 +51,8 @@ built-in types. No new dependencies.
   paths only (`.status.phase`, `{.spec.replicas}`); unsupported expressions
   degrade the column to `-`, they never break the row.
 * Subresources beyond what spec 05/06 already cover (`/log` only for pods).
+* **Delete/replace of the CRD object itself** — CRDs are read-only for now
+  (human decision 2026-10-26, Q6); only their CR instances are mutable.
 * Aggregated/legacy API discovery (`GET /apis` catalogue browsing) — CRDs
   only.
 
@@ -212,24 +214,23 @@ GB10, and hand over the absolute path + `adb install -r` instructions.
 
 ## Open questions
 
-* **Q1 — Discovery freshness:** recommend in-memory cache populated on
-  first use, manual Refresh re-fetches, no TTL (keeps offline-ish quick
-  browsing, one tap for fresh). Alternative: TTL (60 s?) auto-refresh.
-* **Q2 — Default CR version for multi-version CRDs:** recommend storage
-  version when served, else first served; user switches via chip row
-  visible only when > 1 served. Alternative: always first served (simpler,
-  occasionally non-storage).
-* **Q3 — Printer columns beyond priority 0:** recommend render priority 0
-  only (kubectl default view parity). Alternative: show all.
-* **Q4 — CR Summary tab:** recommend the generic fallback set above.
-  Alternative: YAML-only for CRs (skips the condition-line code).
-* **Q5 — CRD search/filter box:** recommend yes (client-side name/shortName
-  substring, mirrors the CR list filter). Alternative: omit (CRD counts are
-  usually < 50).
-* **Q6 — Delete of a CRD itself (not CRs):** the CRD list currently has no
-  delete affordance. Recommend: yes, same spec 06 shared dialog + cascade
-  caution "All instances of this kind will be destroyed." — the machinery
-  exists and RBAC gates it. Alternative: keep CRDs read-only for now.
+All answered 2026-10-26 (human decision 2026-10-26), resolved as follows:
+
+* **Q1 — Discovery freshness:** in-memory cache populated on first use;
+  manual Refresh re-fetches; no TTL. *(as recommended)*
+* **Q2 — Default CR version for multi-version CRDs:** storage version when
+  served, else first served; chip switcher visible only when > 1 served
+  version. *(as recommended)*
+* **Q3 — Printer columns:** render priority-0 columns only (kubectl default
+  parity). *(as recommended)*
+* **Q4 — CR Summary tab:** generic fallback fact set (Name, Namespace,
+  Created, API version, Kind + True condition types); YAML stays source of
+  truth. *(as recommended)*
+* **Q5 — CRD search/filter box:** yes — client-side name/shortName
+  substring filter. *(as recommended)*
+* **Q6 — Delete of a CRD itself:** **CRDs stay read-only for now**
+  (overrides the recommendation) — no delete affordance on the CRD list;
+  CR *instances* still mutate through the spec 06 path.
 
 ## Dev plan
 
