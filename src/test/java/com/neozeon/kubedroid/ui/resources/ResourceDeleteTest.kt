@@ -140,6 +140,33 @@ class ResourceDeleteTest {
         assertEquals(null, v.state.value.deleteTarget)
     }
 
+    @Test fun listDeleteForbidden_bannerIsActuallyVisible() {
+        // Regression: the banner used to render AFTER the fillMaxSize() list
+        // branch and was clipped off screen — VM state was green, UI never
+        // showed it (spec 06 acceptance chain finding).
+        val h = listHarness(delete = 403 to """{"kind":"Status","message":"no","code":403}""")
+        composeRule.setContent {
+            KubedroidTheme {
+                ResourceListScreen(
+                    connectionId = h.connectionId,
+                    apiVersion = "v1",
+                    resource = "pods",
+                    viewModel = listVm(h),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("row-menu").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("row-delete").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("delete-confirm").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("list-delete-error").assertIsDisplayed()
+        composeRule.onNodeWithText("permission to delete", substring = true)
+            .assertIsDisplayed()
+    }
+
     // ---------------- Compose ----------------
 
     @Test fun detailDeleteFlow_showsCautionAndCallsOnDeleted() {

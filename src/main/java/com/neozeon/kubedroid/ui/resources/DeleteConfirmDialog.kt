@@ -7,6 +7,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 /**
  * Spec 06 "Delete flow": ONE confirmation dialog shared by the detail top
@@ -39,7 +41,12 @@ fun DeleteConfirmDialog(
             TextButton(
                 onClick = onConfirm,
                 enabled = !deleting,
-                modifier = Modifier.testTag("delete-confirm"),
+                // content-desc: the uiautomator driver can't use testTag and
+                // the label "Delete" also exists in the detail top bar behind
+                // the dialog — this unambiguously identifies the confirm.
+                modifier = Modifier
+                    .testTag("delete-confirm")
+                    .semantics { contentDescription = "confirm-delete" },
             ) { Text(if (deleting) "Deleting…" else "Delete") }
         },
         dismissButton = {

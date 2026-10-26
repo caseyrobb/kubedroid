@@ -8,6 +8,7 @@ actually contacted the server with the right credentials over TLS.
 Usage: accept-server.py PORT LOG CERT KEY
 """
 import http.server
+import json
 import ssl
 import sys
 import time
@@ -41,7 +42,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     @staticmethod
     def _pod(name, phase="Running", ip="10.42.0.7"):
         return (
-            '{"metadata":{"name":"%s","namespace":"web","labels":{"app":"frontend"},'
+            '{"apiVersion":"v1","kind":"Pod",'
+            '"metadata":{"name":"%s","namespace":"web","labels":{"app":"frontend"},'
             '"creationTimestamp":"2026-01-01T00:00:00Z"},'
             '"spec":{"containers":[{"name":"c","image":"nginx"}]},'
             '"status":{"phase":"%s","podIP":"%s"}}' % (name, phase, ip)
@@ -50,7 +52,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     @staticmethod
     def _pod_multi(name):
         return (
-            '{"metadata":{"name":"%s","namespace":"web","labels":{"app":"multi"},'
+            '{"apiVersion":"v1","kind":"Pod",'
+            '"metadata":{"name":"%s","namespace":"web","labels":{"app":"multi"},'
             '"creationTimestamp":"2026-01-01T00:00:00Z"},'
             '"spec":{"containers":[{"name":"c","image":"nginx"},'
             '{"name":"sidecar","image":"envoy"}]},'
@@ -59,6 +62,112 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ---- spec 05 canned log routes ---------------------------------------
     DROPPED = set()  # pods whose follow stream aborts once (mid-stream drop)
+
+    # ---- spec 06 mutable store -------------------------------------------
+    # Pods that the acceptance driver edits/deletes live here (lazy seed from
+    # the static fixtures, each with a server-managed resourceVersion).
+    # web-protected exists solely to exercise the delete-403 path.
+    MUT: dict = {}
+    DELETED = set()
+    PUTS = {}
+    RV = {}
+    MUT_NAMES = ("web-1", "web-2", "web-multi", "web-drop", "web-nolog",
+                 "web-protected")
+
+    @classmethod
+    def _seed(cls):
+        if cls.MUT:  # seeded once (MUT is never left empty after seeding)
+            return
+        cls.MUT = {}
+        for i, name in enumerate(cls.MUT_NAMES):
+            raw = (cls._pod_multi(name) if name == "web-multi"
+                   else cls._pod(name, phase="Pending" if name == "web-2" else "Running"))
+            body = json.loads(raw)
+            body["metadata"]["resourceVersion"] = str(1000 + i)
+            cls.MUT[name] = body
+            cls.RV[name] = 1000 + i
+
+    def _json(self, code, obj):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _auth_ok(self, verb):
+        auth = self.headers.get("Authorization", "<none>")
+        log(f"{verb} {self.path} Auth={auth}")
+        if REQUIRE_TOKEN and auth != f"Bearer {REQUIRE_TOKEN}":
+            self._json(401, {"message": "Unauthorized"})
+            return False
+        return True
+
+    def _item_route(self):
+        base = self.path.split("?")[0]
+        prefix = "/api/v1/namespaces/web/pods/"
+        if base.startswith(prefix) and not base.endswith("/log"):
+            return base[len(prefix):] or None
+        return None
+
+    def do_PUT(self):
+        if not self._auth_ok("PUT"):
+            return
+        name = self._item_route()
+        self._seed()
+        n = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(n) if n else b""
+        if name is None or name not in self.MUT:
+            return self._json(404, {"kind": "Status", "reason": "NotFound",
+                                    "code": 404, "message": "no such route"})
+        self.PUTS[name] = self.PUTS.get(name, 0) + 1
+        try:
+            body = json.loads(raw.decode())
+        except Exception:  # noqa: BLE001 — malformed body is a client bug
+            return self._json(422, {"kind": "Status", "reason": "Invalid",
+                                    "code": 422, "message": "body is not valid JSON"})
+        want = self.RV[name]
+        if (body.get("metadata") or {}).get("resourceVersion") != str(want):
+            return self._json(409, {
+                "kind": "Status", "reason": "Conflict", "code": 409,
+                "message": "the object has been modified; please apply your "
+                           "changes to the latest version of the object"})
+        containers = (body.get("spec") or {}).get("containers") or []
+        if not containers or any(not c.get("image") for c in containers):
+            return self._json(422, {
+                "kind": "Status", "reason": "Invalid", "code": 422,
+                "message": "spec.containers: Required value"})
+        # apiserver fidelity: status is a subresource — a main-resource PUT
+        # never clears it (driver's replacement doc omits status on purpose)
+        body.setdefault("status", self.MUT[name].get("status"))
+        self.RV[name] = want + 1
+        body["metadata"]["resourceVersion"] = str(self.RV[name])
+        self.MUT[name] = body
+        log(f"MUT_PUT {name} rv={self.RV[name]} puts={self.PUTS[name]}")
+        return self._json(200, body)
+
+    def do_DELETE(self):
+        if not self._auth_ok("DELETE"):
+            return
+        name = self._item_route()
+        self._seed()
+        if name is None or name not in self.MUT:
+            return self._json(404, {"kind": "Status", "reason": "NotFound",
+                                    "code": 404, "message": "no such route"})
+        if name == "web-protected":  # RBAC gate on delete (verb in message)
+            return self._json(403, {
+                "kind": "Status", "reason": "Forbidden", "code": 403,
+                "message": f'pods "{name}" in namespace "web" is forbidden: '
+                           f"User cannot delete resource pods"})
+        if name in self.DELETED:  # second delete: apiserver 404
+            return self._json(404, {"kind": "Status", "reason": "NotFound",
+                                    "code": 404,
+                                    "message": f'pods "{name}" not found'})
+        self.DELETED.add(name)
+        log(f"MUT_DELETE {name}")
+        return self._json(200, {"kind": "Status", "status": "Success",
+                                "code": 200})
+
 
     def _write_chunk(self, data):
         self.wfile.write(b"%X\r\n" % len(data))
@@ -159,18 +268,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ])
         if base == "/api/v1/pods":
             if "continue=PAGE2" in query:
+                if "web-3" in self.DELETED:
+                    return 200, self._pods([])
                 return 200, self._pods([self._pod("web-3", phase="Running")])
-            return 200, self._pods([
-                self._pod("web-1"),
-                self._pod("web-2", phase="Pending"),
-                self._pod_multi("web-multi"),
-                self._pod("web-drop"),
-                self._pod("web-nolog"),
-            ], cont="PAGE2")
+            self._seed()
+            order = ["web-1", "web-2", "web-multi", "web-drop", "web-nolog",
+                     "web-protected"]
+            items = [json.dumps(self.MUT[n]) for n in order
+                     if n not in self.DELETED]
+            return 200, self._pods(items, cont="PAGE2")
         if base.startswith("/api/v1/namespaces/web/pods/"):
             if base.endswith("/log"):
                 return self._log(base, query)
             name = base.rsplit("/", 1)[-1]
+            self._seed()
+            if name in self.MUT:
+                if name in self.DELETED:
+                    return 404, json.dumps(
+                        {"kind": "Status", "reason": "NotFound",
+                         "code": 404}).encode()
+                return 200, json.dumps(self.MUT[name]).encode()
             if name == "web-multi":
                 return 200, self._pod_multi(name).encode()
             return 200, self._pod(name).encode()
@@ -180,6 +297,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "<none>")
         log(f"GET {self.path} Auth={auth}")
         if REQUIRE_TOKEN and self.path != "/version" \
+                and not self.path.startswith("/__test__/") \
                 and auth != f"Bearer {REQUIRE_TOKEN}":
             body = b'{"message":"Unauthorized"}'
             self.send_response(401)
@@ -191,6 +309,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/version":
             body = b'{"major":"1","minor":"36","gitVersion":"v1.36.4"}'
             self.send_response(200)
+        elif self.path.startswith("/__test__/"):
+            # driver-side observation endpoints (no auth; never called by app)
+            self._seed()
+            parts = self.path.split("/")  # ['', '__test__', verb, name]
+            verb, name = parts[2], parts[3] if len(parts) > 3 else ""
+            if verb == "stats":
+                return self._json(200, {
+                    "puts": self.PUTS.get(name, 0),
+                    "rv": self.RV.get(name),
+                    "deleted": name in self.DELETED})
+            if verb == "bump":  # simulate an out-of-band cluster edit (409)
+                if name in self.RV:
+                    self.RV[name] += 1
+                    self.MUT[name]["metadata"]["resourceVersion"] = str(self.RV[name])
+                return self._json(200, {"rv": self.RV.get(name)})
+            return self._json(404, {"error": "unknown test route"})
         else:
             canned = self._resource(self.path)
             if canned == "sent":

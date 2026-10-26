@@ -139,6 +139,28 @@ fun ResourceListScreen(
                     .testTag("search"),
             )
 
+            // spec 06 "Delete flow": banners ABOVE the when — the content
+            // branches use fillMaxSize(), anything after them is clipped off
+            // screen (found by the acceptance chain: the ForbiddenVerb row-
+            // delete banner never rendered while its VM state was correct).
+            state.deleteError?.let { de ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .testTag("list-delete-error"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        de.userMessage(),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { viewModel.dismissDeleteError() }) { Text("Dismiss") }
+                }
+            }
+            state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
+
             val err = state.error
             when {
                 err != null -> Column(
@@ -212,7 +234,8 @@ fun ResourceListScreen(
                 }
             }
 
-            // spec 06 "Delete flow": shared dialog + banners for the row overflow entry.
+            // spec 06 "Delete flow": shared confirmation dialog for the row
+            // overflow entry (banners render above the list, see above).
             state.deleteTarget?.let { summary ->
                 DeleteConfirmDialog(
                     kind = summary.kind.ifBlank { entry?.kind ?: "resource" },
@@ -225,23 +248,6 @@ fun ResourceListScreen(
                     onDismiss = { viewModel.dismissDelete() },
                 )
             }
-            state.deleteError?.let { de ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .testTag("list-delete-error"),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        de.userMessage(),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { viewModel.dismissDeleteError() }) { Text("Dismiss") }
-                }
-            }
-            state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
         }
     }
 }
@@ -276,7 +282,9 @@ private fun SummaryRow(summary: ResourceSummary, onClick: () -> Unit, onDelete: 
         // spec 06 "Delete flow": row overflow Delete (same dialog as detail).
         Box {
             IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("row-menu")) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "Row actions")
+                // name-bearing content-desc so the uiautomator driver can
+                // target a specific row's overflow without testTag support
+                Icon(Icons.Filled.MoreVert, contentDescription = "Row actions for ${summary.name}")
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(

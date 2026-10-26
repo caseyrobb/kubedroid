@@ -179,6 +179,27 @@ fun ResourceDetailScreen(
                 )
             }
 
+            // spec 06 "Delete flow": banners ABOVE the when — the content
+            // branches fillMaxSize() and would clip them off screen
+            // (same list-screen acceptance finding).
+            state.deleteError?.let { de ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .testTag("delete-error"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        de.userMessage(),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { viewModel.dismissDeleteError() }) { Text("Dismiss") }
+                }
+            }
+            state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
+
             val err = state.error
             when {
                 state.editing -> Column(modifier = Modifier.fillMaxSize()) {
@@ -289,24 +310,6 @@ fun ResourceDetailScreen(
                     onDismiss = { viewModel.dismissDelete() },
                 )
             }
-
-            state.deleteError?.let { de ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .testTag("delete-error"),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        de.userMessage(),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { viewModel.dismissDeleteError() }) { Text("Dismiss") }
-                }
-            }
-            state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
 
             // spec 06 "States": conflict never silently overwrites — reload or keep editing.
             if (state.showConflict) {

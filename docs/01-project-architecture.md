@@ -1,14 +1,14 @@
 ---
-description: Defines kubedroid's layered unidirectional-data-flow architecture as built by specs 02-05 — package layout, key components, adaptive strategy, security posture, testing stack, and the remaining deferred areas.
+description: Defines kubedroid's layered unidirectional-data-flow architecture as built by specs 02-06 — package layout, key components, adaptive strategy, security posture, testing stack, and the remaining deferred areas.
 status: active
 ---
 
 # **Project Architecture**
 
-This doc describes the architecture **as built** by specs 02–05 (all active).
+This doc describes the architecture **as built** by specs 02–06 (all active).
 It supersedes the pre-build proposal; where the proposal anticipated shapes
-that were built differently (Fabric8, EncryptedSharedPreferences, watch, an
-editable YAML), the built shape below is authoritative and the deltas are
+that were built differently (Fabric8, EncryptedSharedPreferences, watch),
+the built shape below is authoritative and the deltas are
 noted. Deferred areas are listed under **Deferred / not yet built**.
 
 ## **Architectural Style**
@@ -52,7 +52,7 @@ com.neozeon.kubedroid
 │   ├── local/                         // ClusterRepository, BlobStore, CipherVault (+Keystore impl), PayloadHash
 │   ├── registry/                      // ClusterRegistry interface + DataStoreClusterRegistry
 │   └── qr/                            // QrEnvelopeCodec / QrChunkCodec (chunked QR kubeconfig transfer)
-└── util/YamlRenderer.kt               // deterministic read-only YAML for the detail screen
+└── util/YamlRenderer.kt               // deterministic YAML for the detail view + edit drafts
 ```
 
 Outside the app module: `tools/qr-export/` (standalone plain-JVM Gradle
@@ -76,7 +76,11 @@ project sharing app sources for the QR CLI) and `tools/acceptance/`
   unstructured `Map<String, Any?>` (no Gson codegen). `ResourceCatalog`
   pins the browsable type set and builds paths
   (`/apis?/api` + group/version/resource, namespacing, percent-encoded
-  segments, `logPath`). LogGateway streams line Flow + raw save stream.
+  segments, `logPath`, item `itemPath`). LogGateway streams line Flow + raw
+  save stream. Mutations (`replace`/`delete`) go through single-shot
+  `executeOnce` — never auto-retried (spec 06); `EditSanitizer` strips
+  display-only fields, re-attaches the loaded `resourceVersion`, and guards
+  the identity fields on the PUT body.
 * **ResourceRepository / LogRepository** — resolve the connection context,
   map HTTP/IO failures to the sealed `ResourceError` (with `userMessage()`
   copy; 403 distinguishes `pods` vs `pods/log` RBAC), enforce paging
@@ -96,7 +100,8 @@ project sharing app sources for the QR CLI) and `tools/acceptance/`
 
 * **ViewModels** (Hilt, one per screen area): `ClusterListViewModel`,
   `BrowseViewModel`, `ResourceListViewModel` (generation-guarded paging),
-  `ResourceDetailViewModel` (summary/YAML + Secret reveal),
+  `ResourceDetailViewModel` (summary/YAML + Secret reveal + spec 06
+  edit/save/conflict/delete state),
   `LogViewModel` (stream lifecycle, ring buffer, save state machine).
 * **Navigation 3**: `NavDisplay` + user-owned `NavBackStack` of sealed
   `NavKey`s (`ClusterListKey`, `BrowseKey`, `ResourceListKey`,
@@ -115,8 +120,10 @@ project sharing app sources for the QR CLI) and `tools/acceptance/`
    column config).
 3. Row tap → inline detail (medium+) or `ResourceDetailKey` push;
    `ResourceDetailViewModel` loads the unstructured object; Summary facts +
-   read-only `YamlRenderer` output (copy action; **not editable** — the
-   proposal's edit/patch mode is deferred).
+   `YamlRenderer` output (copy action; spec 06 adds the YAML **edit mode**:
+   draft validation, PUT replace with the loaded `resourceVersion`,
+   conflict dialog, and delete with shared confirmation + list
+   invalidation).
 4. Pod detail top-bar `Logs` → `LogNavPayloads.put(containerNames)` →
    `LogKey` → `LogScreen`/`LogViewModel` stream via `LogRepository` →
    `LogGateway`.
@@ -179,9 +186,6 @@ git/file mirror only.
 
 * **CRD discovery / CR listing** (`ui/crd`, `CrdRepository`) — spec 04
   deliberately pins core + apps/v1 types via `ResourceCatalog`.
-* **Edit/patch and delete of resources** — spec'd in `docs/06` (proposed,
-  stage 1 in progress); specs 02–05 shipped read-only browsing + Secrets
-  reveal.
 * **Watch** — lists are pull/paging only.
 * **Label/field selectors**, richer list columns.
 * Shared `ui/components/` extraction — screens currently inline their
@@ -206,6 +210,6 @@ Kept for history; items 1–4 shipped as specs 02–05, items 5–7 remain open
 2. Cluster connection management. (spec 03)
 3. Generic resource list + detail with YAML viewer. (spec 04)
 4. Pod logs. (spec 05)
-5. Edit / delete actions. (open)
+5. Edit / delete actions. (spec 06)
 6. CRD discovery and CR instance listing. (open)
 7. Polish adaptive layouts and error states. (partly done in 04/05)

@@ -456,6 +456,18 @@ def start_stub():
     return SERVER_PROC
 
 
+def stub_get(path):
+    """Driver-side observation call to the stub's /__test__ endpoints
+    (spec 06: PUT counts, server RV, deleted flags, out-of-band bump)."""
+    import json as _json
+    import ssl as _ssl
+    import urllib.request
+    ctx = _ssl._create_unverified_context()
+    req = urllib.request.Request(f"https://127.0.0.1:{PORT}{path}")
+    with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
+        return _json.loads(resp.read().decode())
+
+
 def main():
     global ENV
     ENV = dict(os.environ, ANDROID_HOME=ANDROID_HOME, ANDROID_SDK_ROOT=ANDROID_HOME)
@@ -800,10 +812,27 @@ def run_app_flow(ca_b64):
     deadline = time.time() + 15
     while time.time() < deadline and not picker:
         top = adb("shell", "dumpsys", "activity", "activities")
-        picker = "com.android.documentsui" in (top.stdout or "")
+        # resumed-only detection: API-26 keeps documentsui in the activity
+        # history forever, which made a plain substring test pass before the
+        # picker was actually up and desync every later back-navigation
+        resumed = [l for l in (top.stdout or "").splitlines()
+                   if "ResumedActivity" in l]
+        picker = any("com.android.documentsui" in l for l in resumed)
         if not picker:
             time.sleep(1)
     adb("shell", "input", "keyevent", "4")  # cancel the picker
+    # poll until the RESUMED activity is no longer the picker: API-26 keeps
+    # documentsui in the activity *history* after dismissal, so a plain
+    # "documentsui in dumpsys" test would stall the full timeout (and every
+    # later navigation raced it).
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        top = adb("shell", "dumpsys", "activity", "activities")
+        resumed = [l for l in (top.stdout or "").splitlines()
+                   if "ResumedActivity" in l]
+        if not any("documentsui" in l for l in resumed):
+            break
+        time.sleep(1)
     time.sleep(2)
     back_on_logs = (has_text("kblog-tail-1", 10, substring=True)
                     or has_text("kblog-beta", 5, substring=True))
@@ -874,10 +903,196 @@ def run_app_flow(ca_b64):
     step("spec05-log-403", forbidden,
          "" if forbidden else _dump_debug(ui_dump_tree()))
 
-    # back: logs -> detail -> list -> grid, then Secrets -> 403 escape hatch
-    for _ in range(3):
+    # ---- spec 06: YAML edit (PUT replace) + delete flows ------------------
+    # (runs BEFORE the network-down steps: the stub restart would reset its
+    # mutable store, and the secrets flow leaves the pod list behind)
+    import json as _json  # noqa: F401 — parity with stub_get internals
+
+    def editor_probe():
+        try:
+            r = ui_dump(retries=6)
+        except RuntimeError:
+            return None
+        nodes = find_edit_nodes(r)
+        return (nodes[0].get("text") or "") if nodes else None
+
+    def tap_editor():
+        r = ui_dump_tree()
+        nodes = find_edit_nodes(r)
+        if nodes:
+            x, y = center(nodes[0])
+            adb("shell", "input", "tap", str(x), str(y))
+            time.sleep(0.6)
+
+    def open_detail(row_text):
+        _, row = wait_node(text=row_text)
+        if row is not None:
+            x, y = center(row)
+            adb("shell", "input", "tap", str(x), str(y))
+        time.sleep(1.5)
+
+    def tap_expect(tap_attrs, expect_attrs, tries=3, settle=5):
+        """Tap a control and confirm a node appeared, retrying the tap on a
+        fresh dump — blind taps raced list reflows after the deletes.
+        expect_attrs matches on text= or content-desc= as per find_nodes."""
+        for _ in range(tries):
+            root = ui_dump_tree()
+            tap_where(root, **tap_attrs)
+            deadline = time.time() + settle
+            while time.time() < deadline:
+                r = ui_dump_tree()
+                if find_nodes(r, **expect_attrs):
+                    return True
+                time.sleep(0.5)
+        return False
+
+    def row_overflow_delete(row_name):
+        """Open a row's overflow, tap Delete, then confirm the dialog.
+        Prints stage diagnostics — the web-protected row resisted the
+        same taps that work on other rows, so each stage reports."""
+        _, menu_node = wait_node(**{"content-desc": f"Row actions for {row_name}"})
+        print(f"  row_overflow[{row_name}] menu node found: {menu_node is not None}",
+              flush=True)
+        opened = tap_expect({"content-desc": f"Row actions for {row_name}"},
+                            {"text": "Delete"})
+        print(f"  row_overflow[{row_name}] menu opened: {opened}", flush=True)
+        if not opened:
+            return False
+        confirmed = tap_expect({"text": "Delete"},
+                               {"content-desc": "confirm-delete"})
+        print(f"  row_overflow[{row_name}] dialog up: {confirmed}", flush=True)
+        if not confirmed:
+            return False
+        root = ui_dump_tree()
+        tap_where(root, **{"content-desc": "confirm-delete"})
+        return True
+
+    for _ in range(2):  # nolog logs -> detail -> list
         adb("shell", "input", "keyevent", "4")
         time.sleep(1)
+
+    # -- edit web-1: replace the doc in the editor, Save -> PUT 200 -> reload
+    open_detail("web-1")
+    root = ui_dump_tree()
+    tap_where(root, text="YAML")
+    time.sleep(0.5)
+    root = ui_dump_tree()
+    tap_where(root, text="Edit")
+    deadline = time.time() + 15
+    while time.time() < deadline and editor_probe() is None:
+        time.sleep(0.5)
+    tap_editor()
+    _clear_field(editor_probe)
+    NEWDOC = ("apiVersion: v1\nkind: Pod\nmetadata:\n  name: web-1\n"
+              "  namespace: web\n  labels:\n    app: frontend\n"
+              "spec:\n  containers:\n  - name: c\n    image: nginx:accept06\n")
+    type_multiline(editor_probe, NEWDOC)
+    root = ui_dump_tree()
+    tap_where(root, text="Save")
+    saved = has_text("nginx:accept06", 25, substring=True)  # long yaml node
+    st = stub_get("/__test__/stats/web-1")
+    step("spec06-edit-save", saved and st["puts"] == 1 and str(st["rv"]) == "1001",
+         f"(saved={saved} stats={st})" if saved else _dump_debug(ui_dump_tree()))
+
+    # -- conflict on web-2: out-of-band RV bump between open-edit and Save
+    adb("shell", "input", "keyevent", "4")  # detail -> list
+    time.sleep(1)
+    open_detail("web-2")
+    root = ui_dump_tree()
+    tap_where(root, text="YAML")
+    time.sleep(0.5)
+    root = ui_dump_tree()
+    tap_where(root, text="Edit")
+    deadline = time.time() + 15
+    while time.time() < deadline and editor_probe() is None:
+        time.sleep(0.5)
+    stub_get("/__test__/bump/web-2")  # someone else edited it
+    root = ui_dump_tree()
+    tap_where(root, text="Save")
+    conflicted = has_text("changed in the cluster", 20, substring=True)
+    root = ui_dump_tree()
+    tap_where(root, text="Reload")
+    time.sleep(3)  # reload GET lands; edit mode must be gone
+    editor_gone = editor_probe() is None
+    step("spec06-edit-conflict", conflicted and editor_gone,
+         f"(dialog={conflicted} editor_gone={editor_gone})"
+         if (conflicted and editor_gone) else _dump_debug(ui_dump_tree()))
+
+    # -- invalid YAML is caught client-side: NO PUT leaves the device
+    root = ui_dump_tree()
+    tap_where(root, text="Edit")
+    deadline = time.time() + 15
+    while time.time() < deadline and editor_probe() is None:
+        time.sleep(0.5)
+    tap_editor()
+    adb("shell", "input", "keyevent", "123")  # MOVE_END
+    adb("shell", "input", "keyevent", "66")   # newline
+    type_text("broken: [unclosed")
+    puts_before = stub_get("/__test__/stats/web-2")["puts"]
+    root = ui_dump_tree()
+    tap_where(root, text="Save")
+    shown_bad = has_text("could not be parsed", 15, substring=True)
+    puts_after = stub_get("/__test__/stats/web-2")["puts"]
+    root = ui_dump_tree()
+    tap_where(root, text="Cancel")
+    time.sleep(1)
+    root = ui_dump_tree()
+    tap_where(root, text="Discard")  # dirty-exit confirm
+    time.sleep(1)
+    step("spec06-edit-invalid", shown_bad and puts_after == puts_before,
+         f"(shown={shown_bad} puts {puts_before}->{puts_after})"
+         if (shown_bad and puts_after == puts_before)
+         else _dump_debug(ui_dump_tree()))
+
+    # -- delete web-multi from the detail top bar: dialog + caution, then the
+    #    list invalidation tick removes the row
+    adb("shell", "input", "keyevent", "4")  # detail -> list
+    time.sleep(1)
+    open_detail("web-multi")
+    root = ui_dump_tree()
+    tap_where(root, text="Delete")
+    caution = has_text("terminated", 10, substring=True)  # pod cascade line
+    root = ui_dump_tree()
+    tap_where(root, **{"content-desc": "confirm-delete"})
+    gone_detail = not has_text("web-multi", 15)
+    st = stub_get("/__test__/stats/web-multi")
+    step("spec06-delete-detail", caution and st["deleted"] and gone_detail,
+         f"(caution={caution} stats={st} row_gone={gone_detail})"
+         if (caution and st["deleted"] and gone_detail)
+         else _dump_debug(ui_dump_tree()))
+
+    # -- delete web-drop via the row overflow (same dialog, list entry point)
+    _, drop_row = wait_node(text="web-drop")
+    row_overflow_delete("web-drop")
+    gone_list = not has_text("web-drop", 15)
+    st = stub_get("/__test__/stats/web-drop")
+    step("spec06-delete-list-row", st["deleted"] and gone_list,
+         f"(stats={st} row_gone={gone_list})"
+         if (st["deleted"] and gone_list) else _dump_debug(ui_dump_tree()))
+
+    # -- delete web-protected: RBAC gate — 403 names the DELETE verb
+    #    (web-nolog is a normal mutable pod; only its LOGS are 403, so the
+    #    dedicated web-protected fixture is the forbidden-delete subject)
+    #    Swipe to the end first: earlier deletions reflowed the rows and the
+    #    overflow button must be on-screen for the content-desc tap to land.
+    _, prot_row = wait_node(text="web-protected")
+    if prot_row is not None:
+        x, y = center(prot_row)
+        adb("shell", "input", "swipe", str(x), str(y + 60), str(x), str(y - 300), "300")
+        time.sleep(1)
+    row_overflow_delete("web-protected")
+    verb_msg = has_text("permission to delete", 20, substring=True)
+    still_there = has_text("web-protected", 5)
+    st = stub_get("/__test__/stats/web-protected")
+    step("spec06-delete-forbidden",
+         verb_msg and still_there and not st["deleted"],
+         f"(verb_msg={verb_msg} row_kept={still_there} stats={st})"
+         if (verb_msg and still_there and not st["deleted"])
+         else _dump_debug(ui_dump_tree()))
+
+    # back: list -> grid, then Secrets -> 403 escape hatch
+    adb("shell", "input", "keyevent", "4")
+    time.sleep(1)
     root, secrets_card = wait_node(text="Secrets")
     if secrets_card is not None:
         x, y = center(secrets_card)

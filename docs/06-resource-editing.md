@@ -1,6 +1,6 @@
 ---
-description: Proposed spec 06 — mutate resources from the app: edit a resource's YAML with replace semantics and optimistic concurrency, plus delete with confirmation, for all catalog types, wired into the spec 04 detail/list surfaces.
-status: proposed
+description: Spec 06 — mutate resources from the app: edit a resource's YAML with replace semantics and optimistic concurrency, plus delete with confirmation, for all catalog types, wired into the spec 04 detail/list surfaces.
+status: active
 ---
 
 # Spec 06 — Resource editing and deletion
@@ -68,6 +68,14 @@ ends with the devbox gate (`testDebugUnitTest lintDebug assembleDebug`).
    behaviour, new `spec06-*` driver steps, full chain on API 37 + 26.
 5. **Stage 5 — activation**: flip `status: active` once acceptance is
    green and Casey has signed off on the Open questions.
+
+All stages completed 2026-10-26: stages 1–4 committed (`f7f8b59`, `fe3abae`,
+`bd7d2e3` + acceptance), unit gate green at 247 tests, and the full chain
+passed **41/41 steps on API 37 and API 26** (six new `spec06-*` steps);
+Open questions answered by Casey 2026-10-26. Activation findings fixed
+during stage 4: the list/detail delete-error banners rendered *after* the
+`fillMaxSize()` content branch and were clipped off-screen (now above the
+content, pinned by a Compose `assertIsDisplayed` regression test).
 
 ## Data layer
 
@@ -188,7 +196,7 @@ Compose/Robolectric (testTags above):
 
 Emulator acceptance (stage 4): stub gains PUT/DELETE with stored
 `resourceVersion` bumping so a stale edit genuinely 409s; new steps
-`spec06-edit-save`, `spec06-edit-conflict`, `spec06-edit-invalid-yaml`,
+`spec06-edit-save`, `spec06-edit-conflict`, `spec06-edit-invalid`,
 `spec06-delete-detail`, `spec06-delete-list-row`, `spec06-delete-forbidden`.
 
 ## Acceptance criteria
