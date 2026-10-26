@@ -17,6 +17,10 @@ PORT = int(sys.argv[1])
 LOG = sys.argv[2]
 CERT = sys.argv[3]
 KEY = sys.argv[4]
+# Optional bearer token: when set, every route except /version requires
+# `Authorization: Bearer <token>` (spec 05 Testing: stub still requires the
+# acceptance bearer token on every route, logs included).
+REQUIRE_TOKEN = sys.argv[5] if len(sys.argv) > 5 else None
 
 
 def log(line):
@@ -176,6 +180,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         auth = self.headers.get("Authorization", "<none>")
         log(f"GET {self.path} Auth={auth}")
+        if REQUIRE_TOKEN and self.path != "/version" \
+                and auth != f"Bearer {REQUIRE_TOKEN}":
+            body = b'{"message":"Unauthorized"}'
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/version":
             body = b'{"major":"1","minor":"36","gitVersion":"v1.36.4"}'
             self.send_response(200)

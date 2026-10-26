@@ -447,7 +447,7 @@ def start_stub():
     global SERVER_PROC
     SERVER_PROC = subprocess.Popen(
         [sys.executable, SERVER, str(PORT), LOG,
-         f"{WORK}/server-cert.pem", f"{WORK}/server-key.pem"],
+         f"{WORK}/server-cert.pem", f"{WORK}/server-key.pem", TOKEN],
         env=ENV,
     )
     deadline = time.time() + 10
@@ -764,6 +764,12 @@ def run_app_flow(ca_b64):
          f"(tail_reqs={len(tail_req)})" if opened
          else _dump_debug(ui_dump_tree()) + " " + logcat_errors())
 
+    # static tail: all three canned lines render (timestamps hidden by default)
+    static_ok = all(has_text(t, 5) for t in
+                    ("kblog-alpha", "kblog-beta", "kblog-gamma"))
+    step("spec05-log-static", static_ok,
+         "" if static_ok else _dump_debug(ui_dump_tree()))
+
     # Timestamps: hidden by default; toggle reveals prefix; ZERO new requests
     ts_hidden = not has_text("2026-01-01T00:00:02Z kblog-beta", 3)
     reqs_before = len(log_lines("pods/web-1/log"))
@@ -778,9 +784,10 @@ def run_app_flow(ca_b64):
     # Follow: server streams a new line every second; assert one arrives live
     root = ui_dump_tree()
     tap_where(root, **{"content-desc": "Follow"})
-    got_follow = has_text("kblog-follow-3", 25)
+    got_follow = (has_text("kblog-follow-1", 25)
+                  and has_text("kblog-follow-2", 5))
     follow_req = [l for l in log_lines("pods/web-1/log") if "follow=true" in l]
-    step("spec05-follow-append", got_follow and bool(follow_req),
+    step("spec05-log-follow-append", got_follow and bool(follow_req),
          f"(follow_reqs={len(follow_req)})" if got_follow
          else _dump_debug(ui_dump_tree()))
 
@@ -799,7 +806,7 @@ def run_app_flow(ca_b64):
     back_on_logs = has_text("kblog-tail-1", 10) or has_text("kblog-beta", 5)
     save_reqs = [l for l in log_lines("pods/web-1/log")
                  if "tailLines" not in l.split("Auth=")[0]]
-    step("spec05-save-picker", picker and back_on_logs and not save_reqs,
+    step("spec05-log-save-picker", picker and back_on_logs and not save_reqs,
          f"(picker={picker} logs={back_on_logs} save_reqs={len(save_reqs)})")
 
     # container dropdown on the two-container pod
@@ -822,7 +829,7 @@ def run_app_flow(ca_b64):
     sidecar_ok = has_text("kblog-sidecar-only", 20)
     sidecar_req = [l for l in log_lines("pods/web-multi/log")
                    if "container=sidecar" in l]
-    step("spec05-container-switch", dropdown and sidecar_ok and bool(sidecar_req),
+    step("spec05-log-container-switch", dropdown and sidecar_ok and bool(sidecar_req),
          f"(dropdown={dropdown} reqs={len(sidecar_req)})" if sidecar_ok
          else _dump_debug(ui_dump_tree()))
 
@@ -844,7 +851,7 @@ def run_app_flow(ca_b64):
         root = ui_dump_tree()
         tap_where(root, text="Retry")
         drop_retry = has_text("kblog-drop-3", 25)
-    step("spec05-midstream-drop", saw_drop_lines and err_card and drop_retry,
+    step("spec05-log-disconnect", saw_drop_lines and err_card and drop_retry,
          "" if (saw_drop_lines and err_card and drop_retry)
          else f"(lines={saw_drop_lines} card={err_card} retry={drop_retry}) "
               + _dump_debug(ui_dump_tree()))
@@ -861,7 +868,7 @@ def run_app_flow(ca_b64):
     root = ui_dump_tree()
     tap_where(root, text="Logs")
     forbidden = has_text("pods/log", 20, substring=True)
-    step("spec05-forbidden-logs", forbidden,
+    step("spec05-log-403", forbidden,
          "" if forbidden else _dump_debug(ui_dump_tree()))
 
     # back: logs -> detail -> list -> grid, then Secrets -> 403 escape hatch
