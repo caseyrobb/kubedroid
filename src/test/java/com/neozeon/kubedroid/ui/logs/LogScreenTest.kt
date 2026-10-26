@@ -133,6 +133,23 @@ class LogScreenTest {
         composeRule.onNodeWithTag("log-loading").assertIsDisplayed()
     }
 
+    @Test fun midStreamErrorKeepsLinesWithBanner() {
+        show()
+        harness.emitLineLast("before-the-drop")
+        harness.emitLineLast("also-before")
+        harness.emitErrorLast(ResourceError.Network)
+        composeRule.waitForIdle()
+
+        // Spec 05 manual-retry decision: buffer kept + banner, not a card.
+        composeRule.onAllNodesWithTag("log-line").assertCountEquals(2)
+        composeRule.onNodeWithTag("stream-error").assertIsDisplayed()
+        composeRule.onNodeWithText("Could not reach the cluster", substring = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag("retry-button").performClick()
+        composeRule.waitForIdle()
+        assertEquals(2, harness.streamRequests.size)
+    }
+
     @Test fun emptyStreamRendersNoLogs() {
         show()
         harness.emitCompletedLast()

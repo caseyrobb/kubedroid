@@ -371,12 +371,38 @@ def wait_node(**attrs):
     return None, None
 
 
+def has_text(text, timeout=20, substring=False):
+    """Poll for a node whose text equals (or, with substring=True,
+    contains) `text`. Dump flakes degrade to a retry, never a false fail."""
+    deadline = time.time() + timeout
+    while True:
+        try:
+            r = ui_dump(retries=3)
+            for n in r.iter("node"):
+                t = (n.get("text") or "").strip()
+                if (text in t if substring else t == text):
+                    return True
+        except RuntimeError:
+            pass
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.8)
+
+
 def log_count(pattern):
     try:
         with open(LOG) as f:
             return sum(1 for line in f if pattern in line)
     except FileNotFoundError:
         return 0
+
+
+def log_lines(pattern):
+    try:
+        with open(LOG) as f:
+            return [line for line in f if pattern in line]
+    except FileNotFoundError:
+        return []
 
 
 def _dump_debug(root):
@@ -727,11 +753,121 @@ def run_app_flow(ca_b64):
             time.sleep(1)
     step("spec04-detail-yaml", shown)
 
-    # back to grid (detail -> list -> grid), then Secrets -> 403 escape hatch
-    adb("shell", "input", "keyevent", "4")
+    # ---- spec 05: pod log viewer ------------------------------------------
+    # web-1 detail (YAML tab is fine — Logs lives in the top bar)
+    root = ui_dump_tree()
+    tap_where(root, text="Logs")
+    opened = has_text("kblog-beta", 25)
+    tail_req = [l for l in log_lines("pods/web-1/log") if "tailLines=1000" in l]
+    step("spec05-open-logs",
+         opened and bool(tail_req) and "timestamps=true" in tail_req[0],
+         f"(tail_reqs={len(tail_req)})" if opened
+         else _dump_debug(ui_dump_tree()) + " " + logcat_errors())
+
+    # Timestamps: hidden by default; toggle reveals prefix; ZERO new requests
+    ts_hidden = not has_text("2026-01-01T00:00:02Z kblog-beta", 3)
+    reqs_before = len(log_lines("pods/web-1/log"))
+    root = ui_dump_tree()
+    tap_where(root, text="TS")
+    shown_ts = has_text("2026-01-01T00:00:02Z kblog-beta", 10)
+    reqs_after = len(log_lines("pods/web-1/log"))
+    step("spec05-timestamps-display-only",
+         ts_hidden and shown_ts and reqs_after == reqs_before,
+         f"(hidden={ts_hidden} shown={shown_ts} reqs {reqs_before}->{reqs_after})")
+
+    # Follow: server streams a new line every second; assert one arrives live
+    root = ui_dump_tree()
+    tap_where(root, **{"content-desc": "Follow"})
+    got_follow = has_text("kblog-follow-3", 25)
+    follow_req = [l for l in log_lines("pods/web-1/log") if "follow=true" in l]
+    step("spec05-follow-append", got_follow and bool(follow_req),
+         f"(follow_reqs={len(follow_req)})" if got_follow
+         else _dump_debug(ui_dump_tree()))
+
+    # Save: SAF picker opens; cancel leaves no file request (no tailLines)
+    root = ui_dump_tree()
+    tap_where(root, text="Save")
+    picker = False
+    deadline = time.time() + 15
+    while time.time() < deadline and not picker:
+        top = adb("shell", "dumpsys", "activity", "activities")
+        picker = "com.android.documentsui" in (top.stdout or "")
+        if not picker:
+            time.sleep(1)
+    adb("shell", "input", "keyevent", "4")  # cancel the picker
+    time.sleep(2)
+    back_on_logs = has_text("kblog-tail-1", 10) or has_text("kblog-beta", 5)
+    save_reqs = [l for l in log_lines("pods/web-1/log")
+                 if "tailLines" not in l.split("Auth=")[0]]
+    step("spec05-save-picker", picker and back_on_logs and not save_reqs,
+         f"(picker={picker} logs={back_on_logs} save_reqs={len(save_reqs)})")
+
+    # container dropdown on the two-container pod
+    for _ in range(2):  # logs -> detail -> list
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+    _, multi_row = wait_node(text="web-multi")
+    if multi_row is not None:
+        x, y = center(multi_row)
+        adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(2)
+    root = ui_dump_tree()
+    tap_where(root, text="Logs")
+    dropdown = has_text("containers", 15)
+    root = ui_dump_tree()
+    tap_where(root, text="containers")
     time.sleep(1)
-    adb("shell", "input", "keyevent", "4")
-    time.sleep(1)
+    root = ui_dump_tree()
+    tap_where(root, text="sidecar")
+    sidecar_ok = has_text("kblog-sidecar-only", 20)
+    sidecar_req = [l for l in log_lines("pods/web-multi/log")
+                   if "container=sidecar" in l]
+    step("spec05-container-switch", dropdown and sidecar_ok and bool(sidecar_req),
+         f"(dropdown={dropdown} reqs={len(sidecar_req)})" if sidecar_ok
+         else _dump_debug(ui_dump_tree()))
+
+    # mid-stream drop on web-drop: lines, then error card, then Retry recovers
+    for _ in range(2):  # logs -> detail -> list
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+    _, drop_row = wait_node(text="web-drop")
+    if drop_row is not None:
+        x, y = center(drop_row)
+        adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(2)
+    root = ui_dump_tree()
+    tap_where(root, text="Logs")
+    saw_drop_lines = has_text("kblog-drop-1", 20)
+    err_card = has_text("Could not reach the cluster", 20, substring=True)
+    drop_retry = False
+    if err_card:
+        root = ui_dump_tree()
+        tap_where(root, text="Retry")
+        drop_retry = has_text("kblog-drop-3", 25)
+    step("spec05-midstream-drop", saw_drop_lines and err_card and drop_retry,
+         "" if (saw_drop_lines and err_card and drop_retry)
+         else f"(lines={saw_drop_lines} card={err_card} retry={drop_retry}) "
+              + _dump_debug(ui_dump_tree()))
+
+    # 403 pods/log on web-nolog: card names the separate RBAC grant
+    for _ in range(2):  # logs -> detail -> list
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+    _, nolog_row = wait_node(text="web-nolog")
+    if nolog_row is not None:
+        x, y = center(nolog_row)
+        adb("shell", "input", "tap", str(x), str(y))
+    time.sleep(2)
+    root = ui_dump_tree()
+    tap_where(root, text="Logs")
+    forbidden = has_text("pods/log", 20, substring=True)
+    step("spec05-forbidden-logs", forbidden,
+         "" if forbidden else _dump_debug(ui_dump_tree()))
+
+    # back: logs -> detail -> list -> grid, then Secrets -> 403 escape hatch
+    for _ in range(3):
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
     root, secrets_card = wait_node(text="Secrets")
     if secrets_card is not None:
         x, y = center(secrets_card)

@@ -26,6 +26,8 @@ def log(line):
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"  # chunked log routes need 1.1 framing
+
     # ---- spec 04 canned payloads (paths matched without query string) ----
     @staticmethod
     def _pods(items, cont=None):
@@ -40,6 +42,95 @@ class Handler(http.server.BaseHTTPRequestHandler):
             '"spec":{"containers":[{"name":"c","image":"nginx"}]},'
             '"status":{"phase":"%s","podIP":"%s"}}' % (name, phase, ip)
         )
+
+    @staticmethod
+    def _pod_multi(name):
+        return (
+            '{"metadata":{"name":"%s","namespace":"web","labels":{"app":"multi"},'
+            '"creationTimestamp":"2026-01-01T00:00:00Z"},'
+            '"spec":{"containers":[{"name":"c","image":"nginx"},'
+            '{"name":"sidecar","image":"envoy"}]},'
+            '"status":{"phase":"Running","podIP":"10.42.0.9"}}' % name
+        )
+
+    # ---- spec 05 canned log routes ---------------------------------------
+    DROPPED = set()  # pods whose follow stream aborts once (mid-stream drop)
+
+    def _write_chunk(self, data):
+        self.wfile.write(b"%X\r\n" % len(data))
+        self.wfile.write(data + b"\r\n")
+        self.wfile.flush()
+
+    def _chunked_stream(self, tail_lines, appends=5, append_prefix="kblog-follow-"):
+        """follow=true route: 1s-paced chunks, clean terminating chunk."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        for ln in tail_lines:
+            self._write_chunk((ln + "\n").encode())
+            time.sleep(1)
+        for i in range(1, appends + 1):
+            self._write_chunk(
+                f"2026-01-01T00:00:1{i}Z {append_prefix}{i}\n".encode())
+            time.sleep(1)
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+
+    def _chunked_abort(self, lines):
+        """mid-stream drop: chunks land, then RST — client sees an IOException,
+        not a clean EOF (no terminating chunk)."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        for ln in lines:
+            self._write_chunk((ln + "\n").encode())
+        import socket as _socket
+        import struct as _struct
+        try:
+            self.request.setsockopt(
+                _socket.SOL_SOCKET, _socket.SO_LINGER, _struct.pack("ii", 1, 0))
+            self.request.close()  # RST mid-body
+        except OSError:
+            pass
+
+    def _log(self, base, query):
+        """/api/v1/namespaces/web/pods/<name>/log routes (spec 05).
+
+        Returns (code, body), the sentinel "sent" (response already written),
+        or None."""
+        container = ""
+        for kv in query.split("&"):
+            if kv.startswith("container="):
+                container = kv.split("=", 1)[1]
+        name = base.split("/")[6]
+        if name == "web-nolog":
+            return 403, (b'{"message":"pods \\"web-nolog\\" in namespace '
+                         b'\\"web\\" is forbidden: cannot get pods/log"}')
+        if name == "web-empty":
+            return 200, b""
+        if name == "web-multi":
+            if "sidecar" in container:
+                return 200, b"2026-01-01T00:00:01Z kblog-sidecar-only\n"
+            return 200, b"2026-01-01T00:00:01Z kblog-multi-c\n"
+        if name == "web-drop" and name not in self.DROPPED:
+            self.DROPPED.add(name)
+            self._chunked_abort(["2026-01-01T00:00:01Z kblog-drop-1",
+                                 "2026-01-01T00:00:02Z kblog-drop-2"])
+            return "sent"
+        if name == "web-drop":
+            return 200, (b"2026-01-01T00:00:01Z kblog-drop-1\n"
+                         b"2026-01-01T00:00:02Z kblog-drop-2\n"
+                         b"2026-01-01T00:00:03Z kblog-drop-3\n")
+        if name == "web-1" and "follow=true" in query:
+            self._chunked_stream(["2026-01-01T00:00:01Z kblog-tail-1",
+                                  "2026-01-01T00:00:02Z kblog-tail-2"])
+            return "sent"
+        return 200, (b"2026-01-01T00:00:01Z kblog-alpha\n"
+                     b"2026-01-01T00:00:02Z kblog-beta\n"
+                     b"2026-01-01T00:00:03Z kblog-gamma\n")
+
 
     def _resource(self, path):
         """Return (code, body) for spec 04 canned routes, or None."""
@@ -66,11 +157,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if base == "/api/v1/pods":
             if "continue=PAGE2" in query:
                 return 200, self._pods([self._pod("web-3", phase="Running")])
-            return 200, self._pods(
-                [self._pod("web-1"), self._pod("web-2", phase="Pending")], cont="PAGE2",
-            )
+            return 200, self._pods([
+                self._pod("web-1"),
+                self._pod("web-2", phase="Pending"),
+                self._pod_multi("web-multi"),
+                self._pod("web-drop"),
+                self._pod("web-nolog"),
+            ], cont="PAGE2")
         if base.startswith("/api/v1/namespaces/web/pods/"):
+            if base.endswith("/log"):
+                return self._log(base, query)
             name = base.rsplit("/", 1)[-1]
+            if name == "web-multi":
+                return 200, self._pod_multi(name).encode()
             return 200, self._pod(name).encode()
         return None
 
@@ -82,6 +181,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
         else:
             canned = self._resource(self.path)
+            if canned == "sent":
+                return  # chunked log response already on the wire
             if canned is not None:
                 code, body = canned
                 self.send_response(code)

@@ -217,7 +217,7 @@ fun LogScreen(
             }
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
-                    ui.error != null -> Column(
+                    ui.error != null && ui.lines.isEmpty() -> Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(24.dp)
@@ -251,16 +251,56 @@ fun LogScreen(
                                 .fillMaxSize()
                                 .testTag("log-body"),
                         ) {
-                            if (ui.ended) {
-                                item {
-                                    Text(
-                                        "Stream closed",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // Mid-stream error: buffer is kept, banner + Retry
+                            // (spec 05 manual-retry decision). Initial error
+                            // with no lines renders the full card instead.
+                            if (ui.error != null) {
+                                item(key = "banner-error") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
+                                            .fillMaxWidth()
                                             .padding(horizontal = 12.dp, vertical = 4.dp)
-                                            .testTag("ended-banner"),
-                                    )
+                                            .testTag("stream-error"),
+                                    ) {
+                                        Text(
+                                            ui.error!!.userMessage(),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(
+                                            onClick = viewModel::retry,
+                                            modifier = Modifier.padding(start = 8.dp)
+                                                .testTag("retry-button"),
+                                        ) {
+                                            Text("Retry")
+                                        }
+                                    }
+                                }
+                            }
+                            if (ui.ended) {
+                                item(key = "banner-ended") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                    ) {
+                                        Text(
+                                            "Stream closed",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.testTag("ended-banner"),
+                                        )
+                                        // spec 05: ended (Completed) shows muted
+                                        // "stream closed" + Retry.
+                                        TextButton(
+                                            onClick = viewModel::retry,
+                                            modifier = Modifier.padding(start = 8.dp)
+                                                .testTag("ended-retry"),
+                                        ) {
+                                            Text("Retry")
+                                        }
+                                    }
                                 }
                             }
                             itemsIndexed(ui.visibleLines, key = { index, _ -> index }) { index, logLine ->
