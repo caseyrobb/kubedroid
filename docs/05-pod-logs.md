@@ -1,6 +1,6 @@
 ---
 description: Read-only pod log viewer — tail a pod's last 1,000 lines with follow streaming, container selector including init containers, client-side line filter, and SAF save of the complete log, riding the spec 03/04 authenticated OkHttp path.
-status: proposed
+status: active
 ---
 
 # Spec 05 — Pod logs
@@ -299,6 +299,9 @@ All answered by Casey 2026-10-25; decisions folded into the body above.
    off by default; saved files always include timestamps.
 
 ## Dev plan
+
+*(All stages complete 2026-10-26; acceptance green on API 37 and API 26 —
+35/35 steps each, including the eight `spec05-*` steps.)*
 
 1. **spec 04 amendment** (must be stage 1): `Logs` action on pod detail top
    bar + `LogKey` nav + placeholder `LogScreen`; nav round-trip Compose test.
