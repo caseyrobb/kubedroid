@@ -76,6 +76,7 @@ fun KubedroidApp() {
                     namespace = key.namespace,
                     name = key.name,
                     onBack = { popBackStack(backStack) },
+                    onDeleted = { popBackStack(backStack) }, // spec 06; list refreshes via tick
                     onOpenLogs = {
                         if (key.namespace != null) {
                             backStack.add(LogKey(key.connectionId, key.namespace, key.name, null))

@@ -77,6 +77,7 @@ fun ResourceScene(
                 viewModel = detailViewModel(detail),
                 onBack = { selected = null },
                 onOpenLogs = { onOpenLogs(detail) },
+                onDeleted = { selected = null }, // lists refresh via ResourceInvalidations
                 modifier = Modifier
                     .weight(0.58f)
                     .fillMaxHeight(),

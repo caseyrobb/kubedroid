@@ -45,6 +45,11 @@ class ResourceListViewModel @Inject constructor(
         val namespace: String? = null,
         val namespaces: List<String> = emptyList(),
         val target: Target? = null,
+        // ---- spec 06 delete state ----
+        val deleteTarget: ResourceSummary? = null,
+        val deleting: Boolean = false,
+        val deleteError: ResourceError? = null,
+        val deleteInfo: String? = null,
     ) {
         /** Client-side filter over name + label values (spec 04). */
         val visibleItems: List<ResourceSummary>
@@ -59,6 +64,17 @@ class ResourceListViewModel @Inject constructor(
 
     private var fetchJob: Job? = null
     private var generation = 0
+
+    init {
+        // spec 06 "Post-mutation consistency": any successful mutation (from
+        // any screen) refreshes every live list. Skips the initial 0 value.
+        scope.launch {
+            var first = true
+            ResourceInvalidations.tick.collect {
+                if (first) first = false else refresh()
+            }
+        }
+    }
 
     /** Called from the screen's LaunchedEffect; no-op when already loaded. */
     fun open(target: Target) {
@@ -89,6 +105,46 @@ class ResourceListViewModel @Inject constructor(
     fun refresh() {
         val target = _state.value.target ?: return
         fetch(target, _state.value.namespace)
+    }
+
+    // ---- spec 06: delete from the list row overflow ----
+
+    fun requestDelete(summary: ResourceSummary) {
+        _state.update { it.copy(deleteTarget = summary, deleteError = null, deleteInfo = null) }
+    }
+
+    fun dismissDelete() {
+        _state.update { it.copy(deleteTarget = null) }
+    }
+
+    fun dismissDeleteError() {
+        _state.update { it.copy(deleteError = null) }
+    }
+
+    fun confirmDelete() {
+        val summary = _state.value.deleteTarget ?: return
+        val target = _state.value.target ?: return
+        if (_state.value.deleting) return
+        _state.update { it.copy(deleting = true, deleteError = null) }
+        scope.launch {
+            val r = repository.delete(
+                com.neozeon.kubedroid.data.model.ResourceRef(
+                    target.connectionId, target.apiVersion, target.resource, summary.namespace, summary.name,
+                ),
+            )
+            _state.update { cur ->
+                when {
+                    r is ResourceResult.Ok && !r.value.existed ->
+                        cur.copy(deleting = false, deleteTarget = null,
+                            deleteInfo = "${summary.name} was already deleted.")
+                    r is ResourceResult.Ok -> cur.copy(deleting = false, deleteTarget = null)
+                    r is ResourceResult.Err -> cur.copy(deleting = false, deleteTarget = null, deleteError = r.error)
+                    else -> cur.copy(deleting = false)
+                }
+            }
+            // Ok already refreshes via the invalidation bump below.
+            if (r is ResourceResult.Ok) ResourceInvalidations.bump()
+        }
     }
 
     fun loadMore() {

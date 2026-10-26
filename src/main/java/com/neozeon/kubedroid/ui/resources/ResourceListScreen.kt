@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -179,13 +180,17 @@ fun ResourceListScreen(
 
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag("resource-list")) {
                     items(state.visibleItems, key = { "${it.namespace}/${it.name}" }) { summary ->
-                        SummaryRow(summary) {
-                            onOpenDetail(
-                                ResourceDetailKey(
-                                    connectionId, apiVersion, resource, summary.namespace, summary.name,
-                                ),
-                            )
-                        }
+                        SummaryRow(
+                            summary,
+                            onClick = {
+                                onOpenDetail(
+                                    ResourceDetailKey(
+                                        connectionId, apiVersion, resource, summary.namespace, summary.name,
+                                    ),
+                                )
+                            },
+                            onDelete = { viewModel.requestDelete(summary) },
+                        )
                     }
                     item(key = "footer") {
                         Row(
@@ -206,6 +211,37 @@ fun ResourceListScreen(
                     }
                 }
             }
+
+            // spec 06 "Delete flow": shared dialog + banners for the row overflow entry.
+            state.deleteTarget?.let { summary ->
+                DeleteConfirmDialog(
+                    kind = summary.kind.ifBlank { entry?.kind ?: "resource" },
+                    name = summary.name,
+                    namespace = summary.namespace,
+                    caution = (summary.kind.ifBlank { entry?.kind ?: "" })
+                        .let { ResourceCatalog.cascadeCaution(it) },
+                    deleting = state.deleting,
+                    onConfirm = { viewModel.confirmDelete() },
+                    onDismiss = { viewModel.dismissDelete() },
+                )
+            }
+            state.deleteError?.let { de ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .testTag("list-delete-error"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        de.userMessage(),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { viewModel.dismissDeleteError() }) { Text("Dismiss") }
+                }
+            }
+            state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
         }
     }
 }
@@ -215,22 +251,42 @@ fun shouldFetchMore(lastVisibleIndex: Int?, itemCount: Int, hasToken: Boolean, l
     hasToken && !loading && lastVisibleIndex != null && itemCount > 0 && lastVisibleIndex >= itemCount - 5
 
 @Composable
-private fun SummaryRow(summary: ResourceSummary, onClick: () -> Unit) {
-    Column(
+private fun SummaryRow(summary: ResourceSummary, onClick: () -> Unit, onDelete: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .testTag("row-${summary.name}"),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(summary.name, style = MaterialTheme.typography.bodyLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            summary.namespace?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(summary.name, style = MaterialTheme.typography.bodyLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                summary.namespace?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(summary.primary, style = MaterialTheme.typography.bodySmall)
+                summary.secondary?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            Text(summary.primary, style = MaterialTheme.typography.bodySmall)
-            summary.secondary?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // spec 06 "Delete flow": row overflow Delete (same dialog as detail).
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("row-menu")) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "Row actions")
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    onClick = {
+                        menuOpen = false
+                        onDelete()
+                    },
+                    modifier = Modifier.testTag("row-delete"),
+                )
             }
         }
     }

@@ -96,10 +96,13 @@ class ResourceSceneTest {
         composeRule.onNodeWithTag("detail-placeholder").assertIsDisplayed()
         composeRule.onNodeWithTag("row-web-1").performClick()
         composeRule.waitForIdle()
-        // detail pane shows the selected pod (tag: the row shares the text);
-        // list pane keeps its row too (existence, not isDisplayed: panes are
-        // cramped at Robolectric's default 320dp width)
-        composeRule.onNodeWithTag("detail-title").assertIsDisplayed()
+        // detail pane shows the selected pod. The title can clip behind the
+        // spec-06 Edit/Delete actions in the narrow pane — assert existence
+        // (spec 05 pitfall), not isDisplayed.
+        assertTrue(
+            "detail-title present after row tap",
+            composeRule.onAllNodesWithTag("detail-title").fetchSemanticsNodes().isNotEmpty(),
+        )
         assertTrue(
             composeRule.onAllNodesWithTag("row-web-1").fetchSemanticsNodes().isNotEmpty(),
         )

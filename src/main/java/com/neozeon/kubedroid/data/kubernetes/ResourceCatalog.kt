@@ -87,6 +87,21 @@ object ResourceCatalog {
         entries.firstOrNull { it.apiVersion == apiVersion && it.resource == resource }
 
     /**
+     * Spec 06 "Delete flow": caution lines for types where deletion cascades
+     * beyond the object itself. Lives with the catalog so new types add their
+     * caution beside their row.
+     */
+    fun cascadeCaution(kind: String): String? = CASCADE_CAUTIONS[kind]
+
+    private val CASCADE_CAUTIONS = mapOf(
+        "Pod" to "Running work in this pod will be terminated immediately.",
+        "Deployment" to "Its ReplicaSets and pods are cascade-deleted.",
+        "StatefulSet" to "Its pods (and their stable identities) are cascade-deleted.",
+        "Service" to "Its ClusterIP, endpoints and DNS access are removed.",
+        "Node" to "All pods scheduled on this node will be evicted.",
+    )
+
+    /**
      * Pod container names from the unstructured object (spec 05 log container
      * selector): (regular, init). Pure map access, same helpers as the
      * status extractors.

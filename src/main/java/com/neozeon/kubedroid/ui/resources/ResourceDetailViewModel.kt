@@ -53,6 +53,12 @@ class ResourceDetailViewModel @Inject constructor(
         val saving: Boolean = false,
         val saveError: ResourceError? = null,
         val showConflict: Boolean = false,
+        // ---- spec 06 delete state ----
+        val confirmDelete: Boolean = false,
+        val deleting: Boolean = false,
+        val deleteError: ResourceError? = null,
+        val deleteInfo: String? = null,
+        val deletedEvent: Int = 0,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -172,6 +178,50 @@ class ResourceDetailViewModel @Inject constructor(
     /** Conflict dialog: keep the draft on screen, dismiss the dialog. */
     fun conflictKeepEditing() {
         _state.update { it.copy(showConflict = false) }
+    }
+
+    // ---- spec 06: delete flow ----
+
+    fun requestDelete() {
+        if (_state.value.obj == null || _state.value.editing) return
+        _state.update { it.copy(confirmDelete = true, deleteError = null, deleteInfo = null) }
+    }
+
+    fun dismissDelete() {
+        _state.update { it.copy(confirmDelete = false) }
+    }
+
+    fun dismissDeleteError() {
+        _state.update { it.copy(deleteError = null) }
+    }
+
+    /**
+     * DELETE with the shared confirmation already given. Never retried
+     * (repository rule); 404 is success with an info line (spec 06 "Delete
+     * flow"); success bumps [ResourceInvalidations] so every list refreshes.
+     */
+    fun performDelete() {
+        val target = ref ?: return
+        if (_state.value.deleting) return
+        _state.update { it.copy(confirmDelete = false, deleting = true, deleteError = null) }
+        scope.launch {
+            val r = repository.delete(target)
+            _state.update { cur ->
+                when {
+                    r is ResourceResult.Ok && r.value.existed ->
+                        cur.copy(deleting = false, deletedEvent = cur.deletedEvent + 1)
+                    r is ResourceResult.Ok ->
+                        cur.copy(
+                            deleting = false,
+                            deleteInfo = "${target.name} was already deleted.",
+                            deletedEvent = cur.deletedEvent + 1,
+                        )
+                    r is ResourceResult.Err -> cur.copy(deleting = false, deleteError = r.error)
+                    else -> cur.copy(deleting = false)
+                }
+            }
+            if (r is ResourceResult.Ok) ResourceInvalidations.bump()
+        }
     }
 
     private sealed interface DraftOutcome {

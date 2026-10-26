@@ -62,6 +62,7 @@ fun ResourceDetailScreen(
     viewModel: ResourceDetailViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onOpenLogs: () -> Unit = {},
+    onDeleted: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -71,6 +72,10 @@ fun ResourceDetailScreen(
     val clipboard = LocalClipboardManager.current
     // screen-level dirty-exit confirmation (spec 06 "Edit flow")
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(state.deletedEvent) {
+        if (state.deletedEvent > 0) onDeleted()
+    }
 
     fun requestExitEdit() {
         if (state.draft != state.initialDraft) showDiscardDialog = true
@@ -115,6 +120,13 @@ fun ResourceDetailScreen(
                                 onClick = { viewModel.startEdit() },
                                 modifier = Modifier.testTag("edit-action"),
                             ) { Text("Edit") }
+                        }
+                        // spec 06: Delete on every catalog type (Q3: RBAC is the gate).
+                        if (state.obj != null) {
+                            TextButton(
+                                onClick = { viewModel.requestDelete() },
+                                modifier = Modifier.testTag("delete-action"),
+                            ) { Text("Delete") }
                         }
                     }
                     // spec 05 amendment: Pods only — Logs opens the viewer.
@@ -264,6 +276,37 @@ fun ResourceDetailScreen(
                     }
                 }
             }
+
+            // spec 06 "Delete flow": shared confirmation dialog + error banner.
+            if (state.confirmDelete) {
+                DeleteConfirmDialog(
+                    kind = entry?.kind ?: "resource",
+                    name = name,
+                    namespace = namespace,
+                    caution = entry?.kind?.let { ResourceCatalog.cascadeCaution(it) },
+                    deleting = state.deleting,
+                    onConfirm = { viewModel.performDelete() },
+                    onDismiss = { viewModel.dismissDelete() },
+                )
+            }
+
+            state.deleteError?.let { de ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .testTag("delete-error"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        de.userMessage(),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { viewModel.dismissDeleteError() }) { Text("Dismiss") }
+                }
+            }
+            state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
 
             // spec 06 "States": conflict never silently overwrites — reload or keep editing.
             if (state.showConflict) {
