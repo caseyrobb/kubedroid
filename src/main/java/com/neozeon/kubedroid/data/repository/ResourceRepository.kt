@@ -1,8 +1,11 @@
 package com.neozeon.kubedroid.data.repository
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.neozeon.kubedroid.data.kubernetes.ResourceCatalog
 import com.neozeon.kubedroid.data.kubernetes.ResourceGateway
 import com.neozeon.kubedroid.data.local.ClusterRepository
+import com.neozeon.kubedroid.data.model.DeleteResult
 import com.neozeon.kubedroid.data.model.RedactedValue
 import com.neozeon.kubedroid.data.model.ResourceDetail
 import com.neozeon.kubedroid.data.model.ResourceError
@@ -81,6 +84,77 @@ class ResourceRepository @Inject constructor(
         }
     }
 
+    // ---- spec 06: mutations (never retried; see spec 06 "Endpoints") ----
+
+    /**
+     * Replace (PUT). [edited] is the user's document already prepared by the
+     * ViewModel through [com.neozeon.kubedroid.data.kubernetes.EditSanitizer]
+     * (identity-validated, status stripped, loaded resourceVersion attached).
+     */
+    suspend fun replace(ref: ResourceRef, edited: Map<String, Any?>): ResourceResult<Unit> {
+        val entry = ResourceCatalog.find(ref.apiVersion, ref.resource)
+            ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '${ref.resource}'"))
+        val context = contextFor(ref.connectionId) ?: return notFound(ref.connectionId)
+        return when (
+            val r = gateway.replace(
+                ref.connectionId, context, entry, ref.namespace, ref.name ?: "", gson.toJson(edited),
+            )
+        ) {
+            is ResourceGateway.Result.Ok -> ResourceResult.Ok(Unit)
+            is ResourceGateway.Result.Http -> ResourceResult.Err(
+                mapMutation(r.code, entry.kind, "update", ref.namespace, ref.name, r.bodySnippet),
+            )
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
+        }
+    }
+
+    /**
+     * Delete. A 404 means the object was already gone — returned as
+     * `DeleteResult(existed = false)` (success), per spec 06 "Delete flow".
+     */
+    suspend fun delete(ref: ResourceRef): ResourceResult<DeleteResult> {
+        val entry = ResourceCatalog.find(ref.apiVersion, ref.resource)
+            ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '${ref.resource}'"))
+        val context = contextFor(ref.connectionId) ?: return notFound(ref.connectionId)
+        return when (val r = gateway.delete(ref.connectionId, context, entry, ref.namespace, ref.name ?: "")) {
+            is ResourceGateway.Result.Ok -> ResourceResult.Ok(DeleteResult(existed = true))
+            is ResourceGateway.Result.Http ->
+                if (r.code == 404) ResourceResult.Ok(DeleteResult(existed = false))
+                else ResourceResult.Err(
+                    mapMutation(r.code, entry.kind, "delete", ref.namespace, ref.name, r.bodySnippet),
+                )
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
+        }
+    }
+
+    /** Mutation mapping point (spec 06): mirrors mapHttp + write-verb errors. */
+    private fun mapMutation(
+        code: Int,
+        kind: String,
+        verb: String,
+        namespace: String?,
+        name: String?,
+        bodySnippet: String,
+    ): ResourceError = when (code) {
+        401 -> ResourceError.Unauthorized
+        403 -> ResourceError.ForbiddenVerb(kind, verb, namespace)
+        404 -> ResourceError.NotFound(kind, name ?: "?")
+        409 -> ResourceError.Conflict(kind, name ?: "?")
+        422 -> ResourceError.Invalid(
+            extractStatusMessage(bodySnippet) ?: "the API server rejected the request (422).",
+        )
+        else -> ResourceError.Server(code)
+    }
+
+    /** apiserver Status JSON carries the actionable `message`; surface it verbatim. */
+    private fun extractStatusMessage(bodySnippet: String): String? = try {
+        (gson.fromJson(bodySnippet, MAP_TYPE) as? Map<*, *>)?.get("message") as? String
+    } catch (e: Exception) {
+        null
+    }
+
     /** Single mapping point HTTP code -> user-actionable error (spec 04). */
     private fun mapHttp(code: Int, kind: String, namespace: String?): ResourceError = when (code) {
         401 -> ResourceError.Unauthorized
@@ -113,6 +187,9 @@ class ResourceRepository @Inject constructor(
     }
 
     companion object {
+        private val gson = Gson()
+        private val MAP_TYPE = object : TypeToken<Map<String, Any?>>() {}.type
+
         // ---- unstructured-map helpers (Gson materialises Map<String,Any?>) ----
 
         private fun Map<String, Any?>?.items(): List<Any?> =

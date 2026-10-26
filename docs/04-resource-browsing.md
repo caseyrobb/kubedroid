@@ -1,5 +1,5 @@
 ---
-description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout.
+description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout. (Amended by spec 06, which adds edit/delete actions to these surfaces.)
 status: active
 ---
 
@@ -18,7 +18,7 @@ spec is **read-only**; mutation (edit/delete) and pod logs land in later specs.
 * Instant client-side search over name and labels.
 * Per-type status summaries on list rows (e.g. `3/3 ready`, `Running`, `10.30.0.5`).
 * Detail screen with two tabs: **Summary** (identity, status, labels,
-  annotations) and **YAML** (live `GET` rendered as YAML, read-only).
+  annotations) and **YAML** (live `GET` rendered as YAML, read-only here; edit/delete of the object is spec 06, `docs/06-resource-editing.md`).
 * Secrets redacted by default everywhere; explicit per-detail reveal.
 * Pagination: infinite scroll — server-side `limit=500` pages fetched
   automatically via the `continue` token as the list nears its end
@@ -194,7 +194,7 @@ existing spec 03 status chip treatment inline in the top bar.
   labels (chips), annotations (chips, truncated with copy).
 * YAML tab: `GET` the object, render with the app's existing SnakeYAML
   dependency (`dump` with block style, wide width); monospace, horizontally
-  scrollable, read-only; copy button (copies the YAML).
+  scrollable, read-only here; copy button (copies the YAML). Spec 06 adds an editable mode to this tab.
 * Secrets: values render `•••• ({n} bytes)` (n = decoded length); a per-detail
   **Reveal** button re-`GET`s and substitutes base64-decoded UTF-8 plaintext
   (`<binary, {n} bytes>` when not valid UTF-8) for that Secret only; leaving

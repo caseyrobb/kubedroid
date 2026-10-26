@@ -32,8 +32,8 @@ in `docs/01` (implementation order step 5).
 
 ## Non-goals (deferred, do not implement here)
 
-* **Create** a brand-new resource from YAML (decided separately; see
-  Open questions Q1).
+* **Create** a brand-new resource from YAML — permanently out of scope
+  (human decision 2026-10-26: "will probably never be a feature").
 * Structured forms (label editors, replica steppers, image setters) — the
   only edit surface here is raw YAML.
 * Multi-document YAML, diff view, or three-way merge on conflict.
@@ -195,28 +195,25 @@ Emulator acceptance (stage 4): stub gains PUT/DELETE with stored
 
 * Every goal demonstrable on the acceptance chain on API 37 **and** API 26.
 * No mutation is ever auto-retried; asserted by request-count in tests.
-* All Open questions below are answered (via Casey's inline spec edits)
-  before `status: active`.
+* All Open questions answered (done 2026-10-26, recorded above) before
+  `status: active`.
 * docs/04 amendment applied; docs/01 deferred list updated (edit/delete
   removed from Deferred).
 
 ## Open questions
 
-Recommendation first in each; awaiting Casey's inline decisions.
+All answered by Casey 2026-10-26 (original recommendations held except
+Q1, which is harder than recommended — permanently out of scope):
 
-* **Q1 — Create from YAML in this spec?** Rec: **defer** to a future spec;
-  edit+delete already exercises the write path, and create needs its own
-  namespace-picking UI.
-* **Q2 — Replace = PUT (whole-object) vs merge-patch?** Rec: **PUT**
-  replace — matches the "YAML is the truth" edit model and makes 409
-  preconditions meaningful.
-* **Q3 — Editable type set?** Rec: **all catalog types**, RBAC decides;
-  no client-side allowlist (Secrets stay masked outside edit mode).
-* **Q4 — Confirmation strictness for delete?** Rec: **simple dialog**
-  naming kind/name/namespace (no typed-name confirmation), plus cascade
-  caution lines.
-* **Q5 — Node/scoped-cluster resources** (Nodes, Namespaces, PVs):
-  allowed here or gated behind an "advanced" toggle? Rec: **allowed**,
-  same dialog (RBAC is the gate; this is a homelab admin tool).
-* **Q6 — Save-error Retry re-PUTs the same body** — acceptable given the
-  precondition, or force a reload first? Rec: **allow Retry as-is**.
+* **Q1 — Create from YAML:** out of scope for this spec and will probably
+  never be a feature. *Moved to Non-goals.*
+* **Q2 — Replace semantics:** PUT whole-object replace.
+* **Q3 — Editable type set:** all catalog types; RBAC is the only gate;
+  no client-side allowlist.
+* **Q4 — Delete confirmation:** simple dialog naming kind/name/namespace;
+  no typed-name confirmation; cascade caution lines kept.
+* **Q5 — Cluster-scoped resources** (Nodes, Namespaces, PVs): allowed,
+  same dialog — homelab admin tool, RBAC is the gate.
+* **Q6 — Save-error Retry:** re-PUT the same body, allowed as-is (the
+  resourceVersion precondition turns a duplicate into a 409, not a
+  double-apply).

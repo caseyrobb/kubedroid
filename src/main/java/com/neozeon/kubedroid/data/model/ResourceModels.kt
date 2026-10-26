@@ -85,5 +85,36 @@ sealed class ResourceError(open val reason: String) {
                 "This pod has: ${if (known.isEmpty()) "no containers" else known.joinToString(", ")}.",
         )
 
+    /**
+     * Spec 06: optimistic concurrency — the resourceVersion precondition in
+     * our PUT no longer matches the stored object. No merge UI: reload.
+     */
+    data class Conflict(val kind: String, val name: String) :
+        ResourceError(
+            "$kind '$name' changed in the cluster since you opened it. " +
+                "Reload it and re-apply your edit; nothing was overwritten.",
+        )
+
+    /** Spec 06: apiserver rejected the document (422); message surfaced verbatim. */
+    data class Invalid(val detail: String) :
+        ResourceError("The cluster rejected the change: $detail")
+
+    /**
+     * Spec 06: 403 on a WRITE verb. Distinct from [Forbidden] (list reads) —
+     * the copy names verb and resource so RBAC can be fixed precisely.
+     */
+    data class ForbiddenVerb(val kind: String, val verb: String, val namespace: String?) :
+        ResourceError(
+            "You do not have permission to $verb $kind in " +
+                (namespace?.let { "namespace $it" } ?: "the cluster") +
+                ". The RBAC rule granting '$verb' on '$kind' is separate from read access.",
+        )
+
     fun userMessage(): String = reason
 }
+
+/**
+ * Spec 06 delete outcome. [existed] == false means the object was already
+ * gone (404) — treated as success by the UI with an informational message.
+ */
+data class DeleteResult(val existed: Boolean)

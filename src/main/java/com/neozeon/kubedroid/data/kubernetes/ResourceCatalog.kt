@@ -48,6 +48,19 @@ object ResourceCatalog {
         listPath(entry, namespace) + "/" + name
 
     /**
+     * Single-object path for mutations (spec 06). Like [logPath], namespace
+     * and name are percent-encoded — mutation URLs are built from user-edited
+     * context, so segments must not be able to escape their slot.
+     */
+    fun itemPath(entry: CatalogEntry, namespace: String?, name: String): String {
+        require(namespace == null || entry.namespaced) {
+            "${entry.kind} is cluster-scoped; it has no namespace scope"
+        }
+        val ns = if (entry.namespaced && namespace != null) "/namespaces/${encodeSegment(namespace)}" else ""
+        return "/${apiPrefix(entry.apiVersion)}$ns/${entry.resource}/${encodeSegment(name)}"
+    }
+
+    /**
      * Pod log subresource path (spec 05 "Endpoint"). Always namespaced;
      * namespace and name are percent-encoded so pathological identifiers
      * cannot escape their path segment.

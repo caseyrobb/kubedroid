@@ -179,8 +179,9 @@ git/file mirror only.
 
 * **CRD discovery / CR listing** (`ui/crd`, `CrdRepository`) — spec 04
   deliberately pins core + apps/v1 types via `ResourceCatalog`.
-* **Edit/patch and delete of resources** — detail YAML is read-only;
-  spec 04 shipped read-only browsing + Secrets reveal.
+* **Edit/patch and delete of resources** — spec'd in `docs/06` (proposed,
+  stage 1 in progress); specs 02–05 shipped read-only browsing + Secrets
+  reveal.
 * **Watch** — lists are pull/paging only.
 * **Label/field selectors**, richer list columns.
 * Shared `ui/components/` extraction — screens currently inline their

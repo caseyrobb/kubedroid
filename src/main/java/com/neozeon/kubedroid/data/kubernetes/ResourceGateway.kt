@@ -10,7 +10,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Spec 04 "ResourceGateway": generic Kubernetes REST access — one OkHttp GET
@@ -68,6 +70,63 @@ open class ResourceGateway @Inject constructor(
         return executeWithRetry(resolved.http, url)
     }
 
+    /**
+     * Spec 06 replace: `PUT {itemPath}` with the caller-prepared JSON body
+     * (ViewModel runs [EditSanitizer] first; the body carries the loaded
+     * `metadata.resourceVersion` as the concurrency precondition).
+     * **Never retried** — an ambiguous mutation must surface for the user,
+     * not silently re-apply (spec 06 "Endpoints").
+     */
+    suspend fun replace(
+        connectionId: UUID,
+        context: String,
+        entry: CatalogEntry,
+        namespace: String?,
+        name: String,
+        bodyJson: String,
+    ): Result {
+        val resolved = resolve(connectionId, context)
+        val url = resolved.basePath + ResourceCatalog.itemPath(entry, namespace, name)
+        val request = Request.Builder()
+            .url(url)
+            .put(bodyJson.toRequestBody(JSON_MEDIA))
+            .build()
+        return executeOnce(resolved.http, request)
+    }
+
+    /** Spec 06 delete: `DELETE {itemPath}`, default propagation. Never retried. */
+    suspend fun delete(
+        connectionId: UUID,
+        context: String,
+        entry: CatalogEntry,
+        namespace: String?,
+        name: String,
+    ): Result {
+        val resolved = resolve(connectionId, context)
+        val url = resolved.basePath + ResourceCatalog.itemPath(entry, namespace, name)
+        val request = Request.Builder().url(url).delete().build()
+        return executeOnce(resolved.http, request)
+    }
+
+    /**
+     * Mutations issue exactly one request. 5xx and IO failures map straight
+     * to [Result.Http] / [Result.Network] — no retry loop. Response bodies
+     * are kept longer than the GET snippet so the repository can extract the
+     * apiserver `Status.message` (422 copy).
+     */
+    private fun executeOnce(http: okhttp3.OkHttpClient, request: Request): Result = try {
+        http.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            when {
+                response.code in 200..299 && body.isBlank() -> Result.Ok(emptyMap())
+                response.code in 200..299 -> parseJson(body)
+                else -> Result.Http(response.code, body.take(MUTATION_SNIPPET))
+            }
+        }
+    } catch (e: IOException) {
+        Result.Network(e.message ?: "io error")
+    }
+
     private fun buildUrl(basePath: String, path: String, limit: Long?, continueToken: String?): String {
         var builder = (basePath + path).toHttpUrl().newBuilder()
         if (limit != null) builder = builder.addQueryParameter("limit", limit.toString())
@@ -121,6 +180,8 @@ open class ResourceGateway @Inject constructor(
         const val PAGE_SIZE = 500L
         private const val MAX_RETRIES = 2
         private const val BODY_SNIPPET = 300
+        private const val MUTATION_SNIPPET = 2_000
+        private val JSON_MEDIA = "application/json".toMediaType()
         private val BACKOFF_MS = longArrayOf(500L, 2_000L)
         private val gson = Gson()
         private val MAP_TYPE = object : TypeToken<Map<String, Any?>>() {}.type
