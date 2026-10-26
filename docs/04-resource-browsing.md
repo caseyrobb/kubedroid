@@ -1,6 +1,6 @@
 ---
 description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout.
-status: proposed
+status: active
 ---
 
 # Spec 04 — Resource browsing and detail
@@ -223,7 +223,7 @@ the chosen library is pinned here before its stage starts.
 | --- | --- | --- |
 | Page size | 500 | server `limit`; infinite scroll prefetches at list end |
 | Read retries | 2 | backoff 500 ms, 2 s; IOException + 5xx only |
-| Search debounce | 300 ms | client-side filter |
+| Search filter | immediate, client-side | in-memory over the loaded window; no network query (see Testing) |
 | Namespace list cache | per browse session | refetched on refresh |
 | Catalog | hardcoded `ResourceCatalog` | path table above, unit-tested |
 
@@ -250,9 +250,8 @@ Every layer is pure-Kotlin-testable; Robolectric + Compose for UI:
   end-of-list scroll appends the next page and keeps search filter, error
   states surface per type (403 message includes namespace scope),
   stale-response drop. Search is an in-memory filter over the loaded window
-  and applies immediately — the 300 ms debounce in the Configuration table
-  only targets network queries, of which there are none (human decision
-  2026-10-25 refinement).
+  and applies immediately — no network query is involved, so no debounce
+  layer exists (human decision 2026-10-25 refinement).
 * `YamlRendererTest`, `SummaryRowsTest`: YAML normalisation (Integer not
   Double, redacted placeholders, no long-scalar wrapping) and Summary row
   derivation.
