@@ -73,6 +73,9 @@ import com.neozeon.kubedroid.data.model.ConnectionStatus
 @Composable
 fun ClusterListScreen(
     viewModel: ClusterListViewModel = hiltViewModel(),
+    // spec 04 amendment: row tap sets active AND browses (stage 1 of the
+    // spec 04 dev plan; default no-op keeps existing callers/tests compiling).
+    onBrowse: (java.util.UUID) -> Unit = {},
 ) {
     val connections by viewModel.connections.collectAsState()
     val statuses by viewModel.statuses.collectAsState()
@@ -137,7 +140,10 @@ fun ClusterListScreen(
                     ConnectionRow(
                         connection = connection,
                         status = statuses[connection.id] ?: ConnectionStatus.Unvalidated,
-                        onClick = { viewModel.setActive(connection.id) },
+                        onClick = {
+                            viewModel.setActive(connection.id)
+                            onBrowse(connection.id)
+                        },
                         onLongClick = { viewModel.requestDelete(connection.id) },
                         onSelectContext = { viewModel.selectContext(connection.id, it) },
                     )

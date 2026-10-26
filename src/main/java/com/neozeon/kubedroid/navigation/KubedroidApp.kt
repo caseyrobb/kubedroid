@@ -8,6 +8,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.neozeon.kubedroid.ui.cluster.ClusterListScreen
+import com.neozeon.kubedroid.ui.resources.BrowseScreen
 
 /**
  * Pops one entry from the app-owned back stack.
@@ -37,7 +38,13 @@ fun KubedroidApp() {
         entryProvider = entryProvider {
             entry<HomeKey> {
                 // spec 03: placeholder body replaced by the cluster list
-                ClusterListScreen()
+                // spec 04 stage 1: row tap activates AND browses (amendment)
+                ClusterListScreen(
+                    onBrowse = { id -> backStack.add(BrowseKey(id)) },
+                )
+            }
+            entry<BrowseKey> { key ->
+                BrowseScreen(connectionId = key.connectionId, onBack = { popBackStack(backStack) })
             }
         },
     )

@@ -83,8 +83,22 @@ class ClusterListScreenTest {
         )
     }
 
-    private fun showScreen() = composeRule.setContent {
-        KubedroidTheme { ClusterListScreen(viewModel = viewModel) }
+    private fun showScreen(onBrowse: (java.util.UUID) -> Unit = {}) = composeRule.setContent {
+        KubedroidTheme { ClusterListScreen(viewModel = viewModel, onBrowse = onBrowse) }
+    }
+
+    @Test fun rowTapActivatesAndNavigates() {
+        // spec 04 amendment (dev plan stage 1): row tap sets active AND browses.
+        var browsed: java.util.UUID? = null
+        showScreen { browsed = it }
+        viewModel.openAdd(kubeconfig)
+        viewModel.confirmAdd()
+        composeRule.waitForIdle()
+        val id = registry.connections.value.single().id
+        composeRule.onNodeWithTag("connection-row").performClick()
+        composeRule.waitForIdle()
+        assertEquals(id, browsed)
+        assertEquals(id, viewModel.activeSelection.value.connectionId)
     }
 
     @Test fun emptyStateShowsImportButtons() {
