@@ -47,6 +47,29 @@ object ResourceCatalog {
     fun getPath(entry: CatalogEntry, namespace: String?, name: String): String =
         listPath(entry, namespace) + "/" + name
 
+    /**
+     * Pod log subresource path (spec 05 "Endpoint"). Always namespaced;
+     * namespace and name are percent-encoded so pathological identifiers
+     * cannot escape their path segment.
+     */
+    fun logPath(entry: CatalogEntry, namespace: String, name: String): String =
+        "/${apiPrefix(entry.apiVersion)}/namespaces/${encodeSegment(namespace)}" +
+            "/${entry.resource}/${encodeSegment(name)}/log"
+
+    /** Minimal percent-encoder for URL path segments (unreserved set kept). */
+    internal fun encodeSegment(value: String): String =
+        buildString {
+            for (ch in value) {
+                if (ch in 'A'..'Z' || ch in 'a'..'z' || ch in '0'..'9' ||
+                    ch == '-' || ch == '.' || ch == '_' || ch == '~'
+                ) append(ch) else for (b in ch.toString().toByteArray(Charsets.UTF_8)) {
+                    append('%'); append(HEX[(b.toInt() shr 4) and 0xF]); append(HEX[b.toInt() and 0xF])
+                }
+            }
+        }
+
+    private val HEX = "0123456789ABCDEF".toCharArray()
+
     fun find(apiVersion: String, resource: String): CatalogEntry? =
         entries.firstOrNull { it.apiVersion == apiVersion && it.resource == resource }
 

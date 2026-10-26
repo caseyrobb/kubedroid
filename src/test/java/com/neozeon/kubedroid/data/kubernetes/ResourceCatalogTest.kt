@@ -164,4 +164,31 @@ class ResourceCatalogTest {
         assertEquals("Bound", line.primary)
         assertEquals("10Gi · longhorn", line.secondary)
     }
+
+    // ---- spec 05: log subresource paths ----
+
+    @Test fun logPathShape() {
+        assertEquals(
+            "/api/v1/namespaces/web/pods/web-1/log",
+            ResourceCatalog.logPath(entry("Pods"), "web", "web-1"),
+        )
+    }
+
+    @Test fun logPathPercentEncodesSpecialSegments() {
+        // Path-segment safety: names can never inject "/" or non-ASCII bytes
+        // into the URL (spec 05 Testing).
+        assertEquals(
+            "/api/v1/namespaces/we%20b/pods/we%2Fd%201/log",
+            ResourceCatalog.logPath(entry("Pods"), "we b", "we/d 1"),
+        )
+        assertEquals(
+            "/api/v1/namespaces/t%C3%A9st/pods/p1/log",
+            ResourceCatalog.logPath(entry("Pods"), "tést", "p1"),
+        )
+        // Unreserved characters stay readable.
+        assertEquals(
+            "/api/v1/namespaces/kube-system/pods/web-1_2~3/log",
+            ResourceCatalog.logPath(entry("Pods"), "kube-system", "web-1_2~3"),
+        )
+    }
 }
