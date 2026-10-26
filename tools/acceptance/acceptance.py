@@ -821,21 +821,29 @@ def run_app_flow(ca_b64):
         if not picker:
             time.sleep(1)
     adb("shell", "input", "keyevent", "4")  # cancel the picker
-    # poll until the RESUMED activity is no longer the picker: API-26 keeps
-    # documentsui in the activity *history* after dismissal, so a plain
-    # "documentsui in dumpsys" test would stall the full timeout (and every
-    # later navigation raced it).
-    deadline = time.time() + 30
-    while time.time() < deadline:
+    # API-26 sometimes re-foregrounds documentsui after the first back:
+    # loop back+settle until the RESUMED activity is clean (the activity
+    # *history* keeps documentsui forever on 26, so only RESUMED counts).
+    for _ in range(3):
+        deadline = time.time() + 12
+        while time.time() < deadline:
+            top = adb("shell", "dumpsys", "activity", "activities")
+            resumed = [l for l in (top.stdout or "").splitlines()
+                       if "ResumedActivity" in l]
+            if not any("documentsui" in l for l in resumed):
+                break
+            time.sleep(1)
+        time.sleep(1.5)
         top = adb("shell", "dumpsys", "activity", "activities")
         resumed = [l for l in (top.stdout or "").splitlines()
                    if "ResumedActivity" in l]
         if not any("documentsui" in l for l in resumed):
             break
-        time.sleep(1)
+        adb("shell", "input", "keyevent", "4")  # picker came back: dismiss again
     time.sleep(2)
     back_on_logs = (has_text("kblog-tail-1", 10, substring=True)
-                    or has_text("kblog-beta", 5, substring=True))
+                    or has_text("kblog-beta", 5, substring=True)
+                    or has_text("Stream closed", 5))  # logs screen, stream ended in picker
     save_reqs = [l for l in log_lines("pods/web-1/log")
                  if "tailLines" not in l.split("Auth=")[0]]
     step("spec05-log-save-picker", picker and back_on_logs and not save_reqs,
@@ -1098,7 +1106,7 @@ def run_app_flow(ca_b64):
     def scroll_grid_until(text, timeout=25):
         deadline = time.time() + timeout
         while time.time() < deadline:
-            if has_text(text, timeout=2):
+            if has_text(text, timeout=2, substring=True):
                 return True
             adb("shell", "input", "swipe", "540", "1300", "540", "400", "400")
             time.sleep(0.6)
