@@ -85,6 +85,7 @@ fun KubedroidApp() {
             }
             entry<LogKey> { key ->
                 LogScreen(
+                    connectionId = key.connectionId,
                     namespace = key.namespace,
                     podName = key.podName,
                     container = key.container,

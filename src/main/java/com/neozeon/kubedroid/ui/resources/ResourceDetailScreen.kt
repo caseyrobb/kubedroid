@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neozeon.kubedroid.data.kubernetes.ResourceCatalog
+import com.neozeon.kubedroid.ui.logs.LogNavPayloads
 import com.neozeon.kubedroid.data.model.ResourceRef
 import java.util.UUID
 
@@ -79,7 +80,19 @@ fun ResourceDetailScreen(
                 actions = {
                     // spec 05 amendment: Pods only — Logs opens the viewer.
                     if (isPod && state.obj != null) {
-                        TextButton(onClick = onOpenLogs, modifier = Modifier.testTag("open-logs")) {
+                        TextButton(
+                            onClick = {
+                                // Hand the container names to the viewer (no second GET, spec 05).
+                                state.obj?.let {
+                                    LogNavPayloads.put(
+                                        connectionId, namespace ?: "default", name,
+                                        ResourceCatalog.containerNames(it),
+                                    )
+                                }
+                                onOpenLogs()
+                            },
+                            modifier = Modifier.testTag("open-logs"),
+                        ) {
                             Text("Logs")
                         }
                     }
