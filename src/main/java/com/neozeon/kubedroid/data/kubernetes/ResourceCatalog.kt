@@ -56,7 +56,7 @@ object ResourceCatalog {
         "/${apiPrefix(entry.apiVersion)}/namespaces/${encodeSegment(namespace)}" +
             "/${entry.resource}/${encodeSegment(name)}/log"
 
-    /** Minimal percent-encoder for URL path segments (unreserved set kept). */
+    /** Unreserved characters kept readable; everything else UTF-8 percent-encoded. */
     internal fun encodeSegment(value: String): String =
         buildString {
             for (ch in value) {
@@ -72,6 +72,20 @@ object ResourceCatalog {
 
     fun find(apiVersion: String, resource: String): CatalogEntry? =
         entries.firstOrNull { it.apiVersion == apiVersion && it.resource == resource }
+
+    /**
+     * Pod container names from the unstructured object (spec 05 log container
+     * selector): (regular, init). Pure map access, same helpers as the
+     * status extractors.
+     */
+    fun containerNames(obj: Map<String, Any?>): Pair<List<String>, List<String>> {
+        fun names(key: String): List<String> {
+            val spec = obj.asMap()?.get("spec").asMap() ?: return emptyList()
+            val list = spec[key].asList() ?: return emptyList()
+            return list.mapNotNull { it.asMap()?.get("name") as? String }
+        }
+        return names("containers") to names("initContainers")
+    }
 
     val byGroup: Map<CatalogGroup, List<CatalogEntry>> by lazy { entries.groupBy { it.group } }
 

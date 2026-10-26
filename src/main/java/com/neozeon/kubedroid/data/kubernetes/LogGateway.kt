@@ -247,7 +247,7 @@ open class LogGateway @Inject constructor(
         /** HTTP code → ResourceError for the pods/log resource (spec 05 error table). */
         fun mapHttp(code: Int, namespace: String, podName: String): ResourceError = when (code) {
             401 -> ResourceError.Unauthorized
-            403 -> ResourceError.Forbidden("pod logs", namespace)
+            403 -> ResourceError.ForbiddenLogs(namespace)
             404 -> ResourceError.NotFound("Pod", podName)
             else -> ResourceError.Server(code)
         }

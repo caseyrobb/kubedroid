@@ -191,4 +191,19 @@ class ResourceCatalogTest {
             ResourceCatalog.logPath(entry("Pods"), "kube-system", "web-1_2~3"),
         )
     }
+
+    @Test fun containerNamesExtractsRegularAndInit() {
+        val (regular, init) = ResourceCatalog.containerNames(
+            json("""{"spec":{"containers":[{"name":"app"},{"name":"sidecar"}],
+                     "initContainers":[{"name":"init-db"}]}}"""),
+        )
+        assertEquals(listOf("app", "sidecar"), regular)
+        assertEquals(listOf("init-db"), init)
+    }
+
+    @Test fun containerNamesHandlesMissingSpec() {
+        val (regular, init) = ResourceCatalog.containerNames(json("""{"metadata":{"name":"p"}}"""))
+        assertEquals(emptyList<String>(), regular)
+        assertEquals(emptyList<String>(), init)
+    }
 }

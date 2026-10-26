@@ -193,7 +193,7 @@ class LogGatewayTest {
 
         assertEquals(1, events.size)
         val err = ((events[0] as LogLineEvent.StreamEnd).reason as StreamEndReason.Error).error
-        assertEquals(ResourceError.Forbidden("pod logs", "web"), err)
+        assertEquals(ResourceError.ForbiddenLogs("web"), err)
         assertEquals(1, server.requestCount)
     }
 
@@ -282,12 +282,12 @@ class LogGatewayTest {
         server.enqueue(MockResponse().setResponseCode(403))
         val f = Fixture(server)
         val error = gateway(f).save(SaveRequest(f.id, "ctx1", "web", "web-1", null), ByteArrayOutputStream())
-        assertEquals(ResourceError.Forbidden("pod logs", "web"), error)
+        assertEquals(ResourceError.ForbiddenLogs("web"), error)
     }
 
     @Test fun mapHttpTable() {
         assertEquals(ResourceError.Unauthorized, LogGateway.mapHttp(401, "web", "web-1"))
-        assertEquals(ResourceError.Forbidden("pod logs", "web"), LogGateway.mapHttp(403, "web", "web-1"))
+        assertEquals(ResourceError.ForbiddenLogs("web"), LogGateway.mapHttp(403, "web", "web-1"))
         assertEquals(ResourceError.NotFound("Pod", "web-1"), LogGateway.mapHttp(404, "web", "web-1"))
         assertEquals(ResourceError.Server(503), LogGateway.mapHttp(503, "web", "web-1"))
     }

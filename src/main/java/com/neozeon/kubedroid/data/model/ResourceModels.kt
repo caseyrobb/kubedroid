@@ -66,5 +66,24 @@ sealed class ResourceError(open val reason: String) {
     data class Server(val code: Int) : ResourceError("The cluster returned an error (HTTP $code).")
     data class Malformed(val detail: String) : ResourceError("The cluster response was not valid JSON: $detail")
 
+    /**
+     * Spec 05: pods/log is a separate RBAC resource/verb from pods — often
+     * omitted while pod reads are granted, so the message must say so.
+     */
+    data class ForbiddenLogs(val namespace: String?) :
+        ResourceError(
+            "You do not have permission to read pod logs in " +
+                (namespace?.let { "namespace $it" } ?: "all namespaces") +
+                ". The rbac.authorization.k8s.io resource \\" +
+                "\"pods/log\\\" (verb get) is granted separately from reading pods.",
+        )
+
+    /** Spec 05: local container validation (friendlier than the server's 400). */
+    data class ContainerNotFound(val requested: String, val known: List<String>) :
+        ResourceError(
+            "Container '$requested' was not found in this pod. " +
+                "This pod has: ${if (known.isEmpty()) "no containers" else known.joinToString(", ")}.",
+        )
+
     fun userMessage(): String = reason
 }
