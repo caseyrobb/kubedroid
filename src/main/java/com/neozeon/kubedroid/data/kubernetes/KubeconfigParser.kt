@@ -214,21 +214,18 @@ class KubeconfigParser @Inject constructor() {
                     KubeconfigError.Malformed("user '$name' has invalid client-key-data"),
                 )
             val keyPem = String(decodedKey, Charsets.US_ASCII)
-            if (keyPem.contains("BEGIN RSA PRIVATE KEY") || keyPem.contains("BEGIN EC PRIVATE KEY")) {
-                return UserOutcome.Err(
-                    KubeconfigError.Unsupported(
-                        "user '$name' uses a PKCS#1 private key; kubedroid requires PKCS#8 — " +
-                            "convert with: openssl pkcs8 -topk8 -nocrypt -in key.pem",
-                    ),
-                )
-            }
-            if (!keyPem.contains("BEGIN PRIVATE KEY")) {
+            val recognizedKey = keyPem.contains("BEGIN RSA PRIVATE KEY") ||
+                keyPem.contains("BEGIN EC PRIVATE KEY") ||
+                keyPem.contains("BEGIN PRIVATE KEY")
+            if (!recognizedKey) {
                 return UserOutcome.Err(
                     KubeconfigError.Malformed(
                         "user '$name' client-key-data is not a PEM private key",
                     ),
                 )
             }
+            // PKCS#1 RSA/EC (what k0s emits) is accepted here and wrapped
+            // into PKCS#8 at TLS setup time — TlsSupport.pkcs8PrivateKey.
             return UserOutcome.Ok(
                 AuthMethod.ClientCert(SecretString(certData), SecretString(keyData)),
             )

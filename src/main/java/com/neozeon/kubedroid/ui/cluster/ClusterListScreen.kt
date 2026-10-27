@@ -123,7 +123,7 @@ fun ClusterListScreen(
             EmptyState(
                 modifier = Modifier.padding(padding),
                 onFile = { runCatching {
-                    fileLauncher.launch(arrayOf("application/x-yaml", "text/yaml", "text/plain", "application/yaml"))
+                    fileLauncher.launch(arrayOf("*/*"))
                 } },
                 onPaste = { viewModel.openAdd() },
                 onQr = { showQrScanner = true },
@@ -164,9 +164,7 @@ fun ClusterListScreen(
                     onClick = {
                         showAddSheet = false
                         runCatching {
-                            fileLauncher.launch(
-                                arrayOf("application/x-yaml", "text/yaml", "text/plain", "application/yaml"),
-                            )
+                            fileLauncher.launch(arrayOf("*/*"))
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

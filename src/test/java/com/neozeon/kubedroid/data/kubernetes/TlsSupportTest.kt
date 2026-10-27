@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -138,6 +139,46 @@ class TlsSupportTest {
             assertTrue("insecure mode must connect: $status", status is ConnectionStatus.Reachable)
         }
     }
+
+    // --- spec 03 amendment 2026-10-26: PKCS#1 auto-wrap (k0s emits PKCS#1) ---
+
+    private fun pkcs1Fixture(name: String): ByteArray =
+        java.util.Base64.getMimeDecoder().decode(
+            checkNotNull(
+                TlsSupportTest::class.java.getResourceAsStream("/tlsfixtures/$name.b64"),
+            ).readBytes().toString(Charsets.US_ASCII).trim(),
+        )
+
+    @Test fun rsaPkcs1AutoWrapsToPkcs8() {
+        val wrapped = TlsSupport.pkcs8PrivateKey(pkcs1Fixture("rsa_pkcs1"))
+        val direct = TlsSupport.pkcs8PrivateKey(pkcs1Fixture("rsa_pkcs8"))
+        assertEquals("RSA", wrapped.algorithm)
+        assertEquals(
+            "PKCS#1 wrap must produce the same key as openssl pkcs8",
+            (direct as java.security.interfaces.RSAPrivateKey).modulus,
+            (wrapped as java.security.interfaces.RSAPrivateKey).modulus,
+        )
+    }
+
+    @Test fun ecPkcs1AutoWrapsToPkcs8() {
+        val wrapped = TlsSupport.pkcs8PrivateKey(pkcs1Fixture("ec_pkcs1"))
+        val direct = TlsSupport.pkcs8PrivateKey(pkcs1Fixture("ec_pkcs8"))
+        assertEquals("EC", wrapped.algorithm)
+        assertEquals(
+            "SEC1 wrap must produce the same key as openssl pkcs8",
+            (direct as java.security.interfaces.ECPrivateKey).s,
+            (wrapped as java.security.interfaces.ECPrivateKey).s,
+        )
+    }
+
+    @Test fun unsupportedPemStillRejected() {
+        val junk = ("-----BEGIN ENCRYPTED PRIVATE KEY-----\nQUJD\n" +
+            "-----END ENCRYPTED PRIVATE KEY-----").toByteArray()
+        assertThrows(IllegalArgumentException::class.java) {
+            TlsSupport.pkcs8PrivateKey(junk)
+        }
+    }
+
 }
 
 private fun tlsResource(name: String): ByteArray =
@@ -151,4 +192,5 @@ private fun serverSslContextFromFixtures(): SSLContext {
         insecureSkipTlsVerify = false,
     )
     return ctx
+
 }

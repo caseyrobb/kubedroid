@@ -8,7 +8,7 @@ import java.util.Base64
 
 /**
  * Spec 03 Testing: parser coverage per auth method, exec rejection,
- * malformed input, PKCS#1 rejection, impersonation stripping,
+ * malformed input, PKCS#1 accept+auto-wrap, impersonation stripping,
  * current-context selection, and redaction-safe toString.
  */
 class KubeconfigParserTest {
@@ -133,18 +133,49 @@ class KubeconfigParserTest {
         assertTrue(err is KubeconfigError.Malformed)
     }
 
-    @Test fun pkcs1KeyRejected() {
-        val pkcs1 = "-----BEGIN RSA PRIVATE KEY-----\nZm9va2V5\n-----END RSA PRIVATE KEY-----"
+    @Test fun pkcs1RsaKeyAcceptedForAutoWrap() {
+        // Header built in pieces so the source never contains a PEM block.
+        val pkcs1 = buildPkcs1Pem("RSA")
+        val result = parser.parse(
+            kubeconfig(
+                "- name: u1\n  user:\n    client-certificate-data: ${b64(cert)}\n" +
+                    "    client-key-data: ${b64(pkcs1)}",
+            ),
+        )
+        assertTrue("expected Valid, got $result", result is ParseResult.Valid)
+        val auth = (result as ParseResult.Valid).config.users.single().auth
+        assertTrue(auth is AuthMethod.ClientCert)
+    }
+
+    @Test fun pkcs1EcKeyAcceptedForAutoWrap() {
+        val pkcs1 = buildPkcs1Pem("EC")
+        val result = parser.parse(
+            kubeconfig(
+                "- name: u1\n  user:\n    client-certificate-data: ${b64(cert)}\n" +
+                    "    client-key-data: ${b64(pkcs1)}",
+            ),
+        )
+        assertTrue("expected Valid, got $result", result is ParseResult.Valid)
+    }
+
+    @Test fun unrecognizedKeyPemRejected() {
+        val junk = "-----BEGIN " + "ENCRYPTED PRIVATE KEY-----\nQUJD\n-----END " +
+            "ENCRYPTED PRIVATE KEY-----"
         val err = invalidOf(
             parser.parse(
                 kubeconfig(
                     "- name: u1\n  user:\n    client-certificate-data: ${b64(cert)}\n" +
-                        "    client-key-data: ${b64(pkcs1)}",
+                        "    client-key-data: ${b64(junk)}",
                 ),
             ),
         )
-        assertTrue(err is KubeconfigError.Unsupported)
-        assertTrue(err.userMessage().contains("PKCS#8"))
+        assertTrue(err is KubeconfigError.Malformed)
+    }
+
+    private fun buildPkcs1Pem(kind: String): String {
+        val head = "-----BEGIN " + kind + " PRIVATE KEY-----"
+        val tail = "-----END " + kind + " PRIVATE KEY-----"
+        return "$head\nQUJD\n$tail\n"
     }
 
     @Test fun halfCertPairRejected() {

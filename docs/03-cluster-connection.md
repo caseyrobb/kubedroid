@@ -67,7 +67,7 @@ Supported at import (validated by the parser):
 | Method | Kubeconfig fields | Behavior |
 | --- | --- | --- |
 | Bearer token | `users[].user.token` | passed through |
-| Client cert/key | `client-certificate(-data)` + `client-key(-data)` | PEM PKCS#8 required; PKCS#1 keys rejected with guidance |
+| Client cert/key | `client-certificate(-data)` + `client-key(-data)` | PEM PKCS#8 accepted directly; PKCS#1 RSA/EC keys (k0s emits these) are auto-wrapped into PKCS#8 before use (amended 2026-10-26) |
 | Basic auth | `username` + `password` | passed through (kept despite server-side deprecation to support future OpenShift clusters — human decision 2026-10-24) |
 | Static OIDC id-token | `auth-provider.name: oidc`, `config.id-token` | used as bearer until expiry; NO refresh |
 
@@ -158,8 +158,10 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
   (display name, context dropdown, status dot, warning badge), FAB "Add
   cluster"; empty state with three import buttons (File / Paste / QR).
 * `AddClusterSheet`: three entry points →
-  * File: `ActivityResultContracts.OpenDocument` (mime
-    `application/x-yaml`, `text/yaml`, `text/plain`);
+  * File: `ActivityResultContracts.OpenDocument` launched with `*/*`
+    (amended 2026-10-26: kubeconfig files often carry no recognizable MIME
+    — `DocumentsUI` greys them out under a yaml/text filter list, making
+    them impossible to select; the parser is the real validation gate);
   * Paste: multiline TextField + Validate button (inline typed errors);
   * QR: `QrScannerDialog` (CameraX `PreviewView` hosted in `AndroidView` +
     ML Kit analyzer) with chunk progress UI (`i/n`) and a Restart button —
@@ -238,7 +240,8 @@ Unit tests (JVM + Robolectric; fakes everywhere, no network):
 
 * `KubeconfigParserTest`: fixture kubeconfigs per auth method (token, cert,
   basic, static oidc), exec rejection message, bad YAML, PKCS#1 key
-  rejection, impersonation strip warning, current-context selection.
+  acceptance (auto-wrap), impersonation strip warning, current-context
+  selection.
 * `QrChunkCodecTest`: chunk/reassemble round trip, out-of-order chunk error,
   corrupt base64, total-count mismatch, single-chunk config.
 * `FakeCipherVaultTest` + `CipherVaultContractTest`: AAD binding (decrypt
@@ -344,3 +347,12 @@ remains a manual check on a real device.
    `kubedroid:1:<i>/<n>:<b64>` codec and renders QR codes (terminal or
    PNG); unit tests for strip + chunk round trip against
    `QrChunkCodecTest` fixtures.
+8. **Device-feedback fixes (2026-10-26, real-phone report)**: (a) file
+   picker launches with `*/*` — the yaml/text MIME list greyed out real
+   kubeconfig files in DocumentsUI (no recognizable MIME), making import
+   impossible; the parser remains the validation gate. (b) PKCS#1 RSA/EC
+   client keys are accepted and auto-wrapped into PKCS#8 at TLS setup
+   (`TlsSupport` minimal DER wrapper; k0s emits PKCS#1, so every k0s
+   kubeconfig was blocked by the old rejection). Tests: openssl PKCS#1
+   RSA/EC fixtures asserted to produce the same keys as `openssl pkcs8`;
+   parser accept/reject matrix updated.
