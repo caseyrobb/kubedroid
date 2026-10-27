@@ -86,7 +86,7 @@ def make_certs():
         # cert blows past it, hiding the tail of the typed kubeconfig.
         sh(["openssl", "ecparam", "-name", "prime256v1", "-genkey",
             "-noout", "-out", ca_key])
-        sh(["openssl", "req", "-x509", "-new", "-key", ca_key, "-days", "2",
+        sh(["openssl", "req", "-x509", "-new", "-key", ca_key, "-days", "3650",
             "-out", ca_crt, "-subj", "/CN=kubedroid-accept-ca"])
         sh(["openssl", "ecparam", "-name", "prime256v1", "-genkey",
             "-noout", "-out", srv_key])
@@ -96,7 +96,7 @@ def make_certs():
             f.write("subjectAltName=IP:10.0.2.2,IP:127.0.0.1\n")
         sh(["openssl", "x509", "-req", "-in", f"{WORK}/server.csr",
             "-CA", ca_crt, "-CAkey", ca_key, "-CAcreateserial",
-            "-out", srv_crt, "-days", "2", "-extfile", f"{WORK}/san.ext"])
+            "-out", srv_crt, "-days", "3650", "-extfile", f"{WORK}/san.ext"])
     b64 = base64.b64encode(open(ca_crt, "rb").read()).decode()
     return ca_key, ca_crt, srv_key, srv_crt, b64
 
