@@ -180,7 +180,7 @@ class LogGatewayTest {
         assertEquals("first", firstLine.line.text)
         val end = events.last() as LogLineEvent.StreamEnd
         assertTrue("mid-stream drop must surface Network, got $end",
-            (end.reason as StreamEndReason.Error).error == ResourceError.Network)
+            (end.reason as StreamEndReason.Error).error is ResourceError.Network)
         assertEquals("no retry after the first line was emitted", 1, server.requestCount)
         assertEquals(emptyList<Long>(), delays)
     }

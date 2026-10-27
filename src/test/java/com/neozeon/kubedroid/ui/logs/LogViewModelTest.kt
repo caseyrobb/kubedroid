@@ -278,9 +278,9 @@ class LogViewModelTest {
         val vm = vm(repo)
         vm.open(params(id), initialContainer = null, knownContainers = listOf("app") to emptyList())
 
-        repo.saveResult = ResourceError.Network
+        repo.saveResult = ResourceError.Network()
         vm.save { ByteArrayOutputStream() }
-        assertEquals(ResourceError.Network, vm.state.value.saveError)
+        assertEquals(ResourceError.Network(), vm.state.value.saveError)
         assertNull(vm.state.value.saveMessage)
         assertFalse(vm.state.value.saving)
     }

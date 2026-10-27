@@ -134,7 +134,7 @@ open class LogGateway @Inject constructor(
                     throw ce
                 } catch (io: IOException) {
                     if (attempts < MAX_RETRIES && !emitted) retry = true
-                    else trySend(LogLineEvent.StreamEnd(StreamEndReason.Error(ResourceError.Network)))
+                    else trySend(LogLineEvent.StreamEnd(StreamEndReason.Error(ResourceError.Network(io.message))))
                 }
                 if (!retry) break
                 backoff.await(BACKOFF_MS[attempts])
@@ -188,7 +188,7 @@ open class LogGateway @Inject constructor(
             call.cancel()
             throw ce
         } catch (io: IOException) {
-            ResourceError.Network
+            ResourceError.Network(io.message)
         }
     }
 

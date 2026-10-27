@@ -137,7 +137,7 @@ class LogScreenTest {
         show()
         harness.emitLineLast("before-the-drop")
         harness.emitLineLast("also-before")
-        harness.emitErrorLast(ResourceError.Network)
+        harness.emitErrorLast(ResourceError.Network())
         composeRule.waitForIdle()
 
         // Spec 05 manual-retry decision: buffer kept + banner, not a card.

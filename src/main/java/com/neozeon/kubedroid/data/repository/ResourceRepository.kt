@@ -51,7 +51,7 @@ class ResourceRepository @Inject constructor(
         return when (val r = gateway.list(connectionId, context, entry, namespace, continueToken = continueToken)) {
             is ResourceGateway.Result.Ok -> ResourceResult.Ok(entry.toPage(r.json))
             is ResourceGateway.Result.Http -> ResourceResult.Err(mapHttp(r.code, entry.kind, namespace))
-            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
             is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
         }
     }
@@ -68,7 +68,7 @@ class ResourceRepository @Inject constructor(
             }
             is ResourceGateway.Result.Http ->
                 ResourceResult.Err(if (r.code == 404) ResourceError.NotFound(entry.kind, ref.name ?: "?") else mapHttp(r.code, entry.kind, ref.namespace))
-            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
             is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
         }
     }
@@ -82,7 +82,7 @@ class ResourceRepository @Inject constructor(
                 r.json.items().mapNotNull { (it as? Map<*, *>)?.str("metadata", "name") },
             )
             is ResourceGateway.Result.Http -> ResourceResult.Err(mapHttp(r.code, "namespaces", null))
-            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
             is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
         }
     }
@@ -107,7 +107,7 @@ class ResourceRepository @Inject constructor(
             is ResourceGateway.Result.Http -> ResourceResult.Err(
                 mapMutation(r.code, entry.kind, "update", ref.namespace, ref.name, r.bodySnippet),
             )
-            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
             is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
         }
     }
@@ -127,7 +127,7 @@ class ResourceRepository @Inject constructor(
                 else ResourceResult.Err(
                     mapMutation(r.code, entry.kind, "delete", ref.namespace, ref.name, r.bodySnippet),
                 )
-            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
             is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
         }
     }

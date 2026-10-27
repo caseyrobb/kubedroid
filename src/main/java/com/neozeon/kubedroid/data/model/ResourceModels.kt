@@ -62,7 +62,11 @@ sealed class ResourceError(open val reason: String) {
     data class NotFound(val kind: String, val name: String) :
         ResourceError("$kind '$name' was not found (it may have been deleted).")
 
-    data object Network : ResourceError("Could not reach the cluster. Check connectivity and retry.")
+    data class Network(val detail: String? = null) :
+        ResourceError(
+            "Could not reach the cluster. Check connectivity and retry." +
+                (detail?.let { " ($it)" } ?: ""),
+        )
     data class Server(val code: Int) : ResourceError("The cluster returned an error (HTTP $code).")
     data class Malformed(val detail: String) : ResourceError("The cluster response was not valid JSON: $detail")
 

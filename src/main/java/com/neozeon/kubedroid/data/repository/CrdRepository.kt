@@ -58,7 +58,7 @@ class CrdRepository @Inject constructor(
                 }
             }
             is ResourceGateway.Result.Http -> ResourceResult.Err(mapHttp(r.code))
-            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network)
+            is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
             is ResourceGateway.Result.Malformed -> ResourceResult.Err(ResourceError.Malformed(r.detail))
         }
     }
