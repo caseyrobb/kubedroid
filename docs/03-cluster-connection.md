@@ -216,8 +216,30 @@ fails compilation. CameraX `ImageProxy.image` is `@ExperimentalGetImage`
 is happy without opt-in but lint flags it, and lint ignores kotlin
 `@OptIn` for such annotations — the project-wide opt-in lives in
 `lint.xml` (`<option name="opt-in" …>` wired via `lint { lintConfig }`).
-`AndroidManifest.xml` gains `INTERNET` and `CAMERA` permissions
-(camera `required=false`; paste/file import works without a camera).
+`AndroidManifest.xml` gains `INTERNET`, `CAMERA` and
+`ACCESS_LOCAL_NETWORK` permissions (camera `required=false`; paste/file
+import works without a camera).
+
+**Local network access (stage 9, field finding).** On Android 16+
+(API 36), apps that *target* SDK 36+ are blocked at the kernel packet
+level from opening TCP connections to private/LAN addresses unless
+`android.permission.ACCESS_LOCAL_NETWORK` is **declared in the manifest
+and granted at runtime** — SYNs are silently dropped, so OkHttp surfaces
+a bare 15 s connect timeout while system apps and apps targeting older
+SDKs (e.g. the browser) connect fine, and `adb shell` (uid 2000) is
+exempt. Emulators do not enforce it, so acceptance never caught it; a
+kubedroid cluster almost always lives on a LAN address, which makes this
+permission existential, not optional. Behavior:
+
+* `ClusterListScreen` requests the permission via
+  `ActivityResultContracts.RequestPermission` as soon as the cluster
+  list becomes non-empty and the permission is missing (fires right
+  after import and on subsequent launches until granted). The request
+  is skipped entirely below API 36 where the permission does not exist,
+  so pre-36 devices and the API 26 emulator matrix are unaffected.
+* If a probe fails while the permission is missing, the unreachable
+  message appends a hint naming the permission so the failure is
+  self-explanatory instead of a mystery timeout.
 
 ## Configuration
 
@@ -311,6 +333,15 @@ remains a manual check on a real device.
 * `logcat` inspection during import/probe shows no token/cert material
   (verified with a probe-based log sink assertion in a ViewModel test).
 * `./gradlew build` green with all the above tests.
+* Local network access (stage 9): unit tests for the `LocalNetworkAccess`
+  helper (below API 36 the permission is treated as always granted so the
+  request path and hints are dormant; at/above 36 the granted state
+  follows `checkSelfPermission`). Real-device acceptance: with the
+  permission denied, LAN-cluster probes show the named-permission hint;
+  once granted (system dialog or `adb shell pm grant`), pods list
+  (verified on a Pixel 8a, Android 17, against the k0s LAN API server —
+  before the fix every connect timed out while the browser from the same
+  phone reached the same endpoint).
 
 ## Open questions
 
@@ -356,3 +387,9 @@ remains a manual check on a real device.
    kubeconfig was blocked by the old rejection). Tests: openssl PKCS#1
    RSA/EC fixtures asserted to produce the same keys as `openssl pkcs8`;
    parser accept/reject matrix updated.
+9. **Local network permission (2026-10-27, real-phone report)**: declare
+   `ACCESS_LOCAL_NETWORK` in the manifest and request it from
+   `ClusterListScreen` once clusters exist (Android 16+ kernel-level drop
+   of LAN SYNs for apps targeting SDK 36+ when ungranted); probe
+   unreachable text names the permission when it is missing. Unit tests
+   for the helper + device verification per the Testing section.

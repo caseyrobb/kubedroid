@@ -536,6 +536,11 @@ def run_app_flow(ca_b64):
     adb("install", "-r", APK)
     adb("shell", "am", "force-stop", PKG)
     adb("shell", "pm", "clear", PKG)  # pristine state incl. keystore+datastore
+    # spec 03 stage 9: Android 16+ drops LAN connects until granted; the
+    # stub is reached via 10.0.2.2 (not LAN-classified), but pre-grant so
+    # the RequestPermission dialog never steals focus mid-driver. On the
+    # API 26 image the permission doesn't exist -> grant fails, ignore.
+    adb("shell", "pm", "grant", PKG, "android.permission.ACCESS_LOCAL_NETWORK")
     adb("shell", "am", "start", "-n", f"{PKG}/{ACTIVITY}")
     time.sleep(8)
 

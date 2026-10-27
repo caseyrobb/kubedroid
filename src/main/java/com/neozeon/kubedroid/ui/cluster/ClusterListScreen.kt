@@ -56,10 +56,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.neozeon.kubedroid.data.kubernetes.LocalNetworkAccess
 import com.neozeon.kubedroid.data.model.ClusterConnection
 import com.neozeon.kubedroid.data.model.ConnectionStatus
 
@@ -94,6 +96,19 @@ fun ClusterListScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri != null) viewModel.importFile(uri)
+    }
+
+    // spec 03 stage 9: Android 16+ drops LAN SYNs for apps targeting
+    // SDK 36+ until ACCESS_LOCAL_NETWORK is granted — ask as soon as
+    // there is something to connect to (helper is a no-op below API 36).
+    val context = LocalContext.current
+    val localNetworkLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* probe/list errors surface on their own; nothing else to gate */ }
+    LaunchedEffect(connections.isEmpty()) {
+        if (connections.isNotEmpty() && !LocalNetworkAccess.isGranted(context)) {
+            localNetworkLauncher.launch(LocalNetworkAccess.PERMISSION)
+        }
     }
 
     Scaffold(
@@ -278,7 +293,11 @@ private fun ConnectionRow(
                         modifier = Modifier.testTag("status-text"),
                     )
                     is ConnectionStatus.Unreachable -> Text(
-                        status.reason,
+                        // spec 03 stage 9: name the local-network permission
+                        // when it is missing — a LAN timeout with no hint is
+                        // otherwise indistinguishable from a dead cluster.
+                        status.reason +
+                            (LocalNetworkAccess.missingHint(LocalContext.current) ?: ""),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error,
                         maxLines = 2,

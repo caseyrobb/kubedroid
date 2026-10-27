@@ -6,6 +6,9 @@
     <!-- spec 03 stage 5: chunked QR kubeconfig import -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- spec 03 stage 9: Android 16+ blocks LAN connects for apps
+         targeting SDK 36+ without this (kubedroid clusters are LAN) -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <application
         android:name=".KubeApplication"
