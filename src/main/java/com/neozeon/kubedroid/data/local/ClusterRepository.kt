@@ -111,9 +111,11 @@ class ClusterRepository @Inject constructor(
     suspend fun probe(id: UUID): ConnectionStatus {
         val conn = registry.connections.value.firstOrNull { it.id == id }
             ?: return ConnectionStatus.Unreachable("connection no longer exists")
+        var probeUrl: String? = null
         val status = try {
             val client = apiClientProvider.clientFor(id, conn.contextName)
-            val request = Request.Builder().url(client.basePath.trimEnd('/') + "/version").build()
+            probeUrl = client.basePath.trimEnd('/') + "/version"
+            val request = Request.Builder().url(probeUrl!!).build()
             client.httpClient.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful -> ConnectionStatus.Reachable(
@@ -129,7 +131,16 @@ class ClusterRepository @Inject constructor(
         } catch (e: UnknownHostException) {
             ConnectionStatus.Unreachable("host not found: ${e.message}")
         } catch (e: SocketTimeoutException) {
-            ConnectionStatus.Unreachable("API server timed out")
+            // Phase from the OkHttp/Conscrypt message: 'connect timed out' = SYN
+            // never answered; 'read timed out' = connected but stalled (typical of
+            // a TLS handshake waiting on a client certificate that never arrives).
+            ConnectionStatus.Unreachable(
+                "API server timed out (${e.message ?: "no detail"}; probe $probeUrl)",
+            )
+        } catch (e: java.net.ConnectException) {
+            ConnectionStatus.Unreachable(
+                "could not connect to API server (${e.message}; probe $probeUrl)",
+            )
         } catch (e: SSLException) {
             ConnectionStatus.Unreachable(
                 "TLS handshake failed (check CA data or use insecure-skip-tls-verify): ${e.message}",
