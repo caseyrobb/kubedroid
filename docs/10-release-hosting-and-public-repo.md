@@ -110,8 +110,11 @@ Survey already done (2026-10-28, HEAD `58608be`):
 * **Q4 — First public version**: `v0.1.0` from current HEAD. The public
   GitHub launch will be around `v1.0` (or `v0.99`) — i.e. after the
   homelab-proven prerelease line.
-* **Q5 — F-Droid**: yes, later; the repo already satisfies the baseline
-  (open source, no proprietary deps). No work in this spec.
+* **Q5 — F-Droid**: yes, later — now scoped as spec 11
+  (`docs/11-fdroid-distribution.md`, 2026-10-28). Note: the earlier claim
+  "no proprietary deps" was wrong — `com.google.mlkit:barcode-scanning` is
+  a closed-source binary and must be replaced (spec 11 stage 1). No work in
+  this spec.
 * **Q6 — CI**: yes, hosted CI on GitHub where possible. A minimal
   test+assemble workflow is added at `.github/workflows/` NOW but guarded
   (`if: github.repository == 'caseyrobb/kubedroid'`) so it is inert on the
