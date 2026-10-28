@@ -30,6 +30,8 @@ data class CatalogEntry(
     val apiVersion: String,
     val resource: String,
     val namespaced: Boolean,
+    // Spec 08: official kind icon (@DrawableRes); resolved via catalogIcon().
+    val iconVector: Int = 0,
     val statusExtractor: (Map<String, Any?>) -> StatusLine,
 )
 
@@ -148,6 +150,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "Pods", kind = "Pod", group = CatalogGroup.WORKLOADS,
             apiVersion = "v1", resource = "pods", namespaced = true,
+            iconVector = catalogIcon("v1", "Pod"),
         ) { obj ->
             val phase = obj.str("status", "phase") ?: "Unknown"
             val desired = obj.listAt("spec", "containers")?.size ?: 0
@@ -159,18 +162,21 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "Deployments", kind = "Deployment", group = CatalogGroup.WORKLOADS,
             apiVersion = "apps/v1", resource = "deployments", namespaced = true,
+            iconVector = catalogIcon("apps/v1", "Deployment"),
         ) { obj ->
             StatusLine(readyDesired(obj.num("status", "readyReplicas"), obj.num("spec", "replicas")), null)
         },
         CatalogEntry(
             displayName = "StatefulSets", kind = "StatefulSet", group = CatalogGroup.WORKLOADS,
             apiVersion = "apps/v1", resource = "statefulsets", namespaced = true,
+            iconVector = catalogIcon("apps/v1", "StatefulSet"),
         ) { obj ->
             StatusLine(readyDesired(obj.num("status", "readyReplicas"), obj.num("spec", "replicas")), null)
         },
         CatalogEntry(
             displayName = "DaemonSets", kind = "DaemonSet", group = CatalogGroup.WORKLOADS,
             apiVersion = "apps/v1", resource = "daemonsets", namespaced = true,
+            iconVector = catalogIcon("apps/v1", "DaemonSet"),
         ) { obj ->
             StatusLine(
                 readyDesired(obj.num("status", "numberReady"), obj.num("status", "desiredNumberScheduled")),
@@ -180,12 +186,14 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "ReplicaSets", kind = "ReplicaSet", group = CatalogGroup.WORKLOADS,
             apiVersion = "apps/v1", resource = "replicasets", namespaced = true,
+            iconVector = catalogIcon("apps/v1", "ReplicaSet"),
         ) { obj ->
             StatusLine(readyDesired(obj.num("status", "readyReplicas"), obj.num("spec", "replicas")), null)
         },
         CatalogEntry(
             displayName = "Jobs", kind = "Job", group = CatalogGroup.WORKLOADS,
             apiVersion = "batch/v1", resource = "jobs", namespaced = true,
+            iconVector = catalogIcon("batch/v1", "Job"),
         ) { obj ->
             val succeeded = obj.num("status", "succeeded") ?: 0
             val desired = obj.num("spec", "completions") ?: 1
@@ -200,6 +208,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "CronJobs", kind = "CronJob", group = CatalogGroup.WORKLOADS,
             apiVersion = "batch/v1", resource = "cronjobs", namespaced = true,
+            iconVector = catalogIcon("batch/v1", "CronJob"),
         ) { obj ->
             val schedule = obj.str("spec", "schedule") ?: "?"
             val secondary = when {
@@ -211,6 +220,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "Services", kind = "Service", group = CatalogGroup.NETWORK,
             apiVersion = "v1", resource = "services", namespaced = true,
+            iconVector = catalogIcon("v1", "Service"),
         ) { obj ->
             val ports = obj.listAt("spec", "ports")
                 ?.mapNotNull { it.asMap()?.let { p -> (p.num("port") ?: 0).toString() + "/" + (p.str("protocol") ?: "TCP") } }
@@ -224,6 +234,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "ConfigMaps", kind = "ConfigMap", group = CatalogGroup.CONFIG,
             apiVersion = "v1", resource = "configmaps", namespaced = true,
+            iconVector = catalogIcon("v1", "ConfigMap"),
         ) { obj ->
             val keys = (obj.mapAt("data")?.size ?: 0) + (obj.mapAt("binaryData")?.size ?: 0)
             StatusLine("$keys key${if (keys == 1) "" else "s"}", null)
@@ -231,6 +242,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "Secrets", kind = "Secret", group = CatalogGroup.CONFIG,
             apiVersion = "v1", resource = "secrets", namespaced = true,
+            iconVector = catalogIcon("v1", "Secret"),
         ) { obj ->
             val keys = (obj.mapAt("data")?.size ?: 0) + (obj.mapAt("stringData")?.size ?: 0)
             StatusLine(obj.str("type") ?: "Opaque", "$keys key${if (keys == 1) "" else "s"} (redacted)")
@@ -239,6 +251,7 @@ object ResourceCatalog {
             displayName = "PersistentVolumeClaims", kind = "PersistentVolumeClaim",
             group = CatalogGroup.STORAGE,
             apiVersion = "v1", resource = "persistentvolumeclaims", namespaced = true,
+            iconVector = catalogIcon("v1", "PersistentVolumeClaim"),
         ) { obj ->
             val size = obj.str("status", "capacity", "storage")
             val sc = obj.str("spec", "storageClassName")
@@ -250,6 +263,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "Nodes", kind = "Node", group = CatalogGroup.CLUSTER,
             apiVersion = "v1", resource = "nodes", namespaced = false,
+            iconVector = catalogIcon("v1", "Node"),
         ) { obj ->
             val ready = obj.listAt("status", "conditions")
                 ?.firstOrNull { it.asMap()?.str("type") == "Ready" }
@@ -262,6 +276,7 @@ object ResourceCatalog {
         CatalogEntry(
             displayName = "Namespaces", kind = "Namespace", group = CatalogGroup.CLUSTER,
             apiVersion = "v1", resource = "namespaces", namespaced = false,
+            iconVector = catalogIcon("v1", "Namespace"),
         ) { obj ->
             StatusLine(obj.str("status", "phase") ?: "Unknown", null)
         },

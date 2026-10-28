@@ -2,6 +2,7 @@ package com.neozeon.kubedroid.ui.resources
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -119,5 +120,46 @@ class ResourceListScreenTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("empty-state").assertIsDisplayed()
+    }
+
+    // ---- spec 08 stage 2: official kind icons on list surfaces ----
+
+    @Test fun rowsShowOfficialKindIcon() {
+        val h = ResourceTestHarness({ path, _ ->
+            if (path.endsWith("namespaces")) 200 to ResourceFixtures.itemsJson(emptyList())
+            else 200 to ResourceFixtures.itemsJson(listOf(ResourceFixtures.pod("web-1", app = "frontend")))
+        })
+        composeRule.setContent {
+            KubedroidTheme {
+                ResourceListScreen(
+                    connectionId = h.connectionId,
+                    apiVersion = "v1",
+                    resource = "pods",
+                    viewModel = listVm(h),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        // Leading slot icon per row, contentDescription = kind (Q3A: art keeps
+        // its official colors; we only assert presence, not pixels).
+        assertTrue(
+            composeRule.onAllNodesWithContentDescription("Pod").fetchSemanticsNodes().isNotEmpty(),
+        )
+    }
+
+    @Test fun emptyStateShowsOfficialKindIcon() {
+        val h = ResourceTestHarness({ _, _ -> 200 to ResourceFixtures.itemsJson(emptyList()) })
+        composeRule.setContent {
+            KubedroidTheme {
+                ResourceListScreen(
+                    connectionId = h.connectionId,
+                    apiVersion = "v1",
+                    resource = "pods",
+                    viewModel = listVm(h),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("empty-icon").assertIsDisplayed()
     }
 }

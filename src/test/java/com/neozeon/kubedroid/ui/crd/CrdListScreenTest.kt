@@ -3,6 +3,7 @@ package com.neozeon.kubedroid.ui.crd
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -63,6 +64,8 @@ class CrdListScreenTest {
         show(h, vm(h))
         composeRule.onNodeWithTag("crd-widgets.example.com").assertIsDisplayed()
         composeRule.onNodeWithText("example.com · Widget").assertIsDisplayed()
+        // spec 08: CRD rows carry the official crd.svg (contentDescription = kind).
+        composeRule.onNodeWithContentDescription("Widget").assertIsDisplayed()
         composeRule.onNodeWithText("1 served version · namespaced").assertIsDisplayed()
         composeRule.onNodeWithTag("crd-clusters.stable.example.com").assertIsDisplayed()
         composeRule.onNodeWithText("2 served versions · cluster").assertIsDisplayed()

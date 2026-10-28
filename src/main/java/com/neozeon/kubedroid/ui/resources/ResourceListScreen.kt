@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,6 +22,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -214,16 +216,33 @@ fun ResourceListScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        "No ${entry?.displayName?.lowercase() ?: resource} found",
-                        modifier = Modifier.testTag("empty-state"),
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // spec 08: official kind icon on the empty state.
+                        if (entry != null && entry.iconVector != 0) {
+                            Icon(
+                                painterResource(entry.iconVector),
+                                contentDescription = entry.kind,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .testTag("empty-icon"),
+                            )
+                        }
+                        Text(
+                            "No ${entry?.displayName?.lowercase() ?: resource} found",
+                            modifier = Modifier.testTag("empty-state"),
+                        )
+                    }
                 }
 
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag("resource-list")) {
                     items(state.visibleItems, key = { "${it.namespace}/${it.name}" }) { summary ->
                         SummaryRow(
                             summary,
+                            iconVector = entry?.iconVector ?: 0,
+                            kindLabel = entry?.kind ?: resource,
                             onClick = {
                                 onOpenDetail(
                                     ResourceDetailKey(
@@ -277,7 +296,13 @@ fun shouldFetchMore(lastVisibleIndex: Int?, itemCount: Int, hasToken: Boolean, l
     hasToken && !loading && lastVisibleIndex != null && itemCount > 0 && lastVisibleIndex >= itemCount - 5
 
 @Composable
-private fun SummaryRow(summary: ResourceSummary, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun SummaryRow(
+    summary: ResourceSummary,
+    iconVector: Int,
+    kindLabel: String,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -287,6 +312,16 @@ private fun SummaryRow(summary: ResourceSummary, onClick: () -> Unit, onDelete: 
             .testTag("row-${summary.name}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // spec 08: official kind icon leading slot (Q6A).
+        if (iconVector != 0) {
+            Icon(
+                painterResource(iconVector),
+                contentDescription = kindLabel,
+                modifier = Modifier
+                    .size(24.dp)
+                    .padding(end = 12.dp),
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(summary.name, style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

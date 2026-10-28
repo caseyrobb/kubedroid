@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Spec 08: Node has no upstream icon in the kubernetes/community
+         resource set; this is the Material Icons "dns" server-rack glyph
+         (Apache-2.0), recolored to Kubernetes blue to match the set. -->
+    <path
+        android:fillColor="#FF326CE5"
+        android:pathData="M4,3h16c0.55,0 1,0.45 1,1v6c0,0.55 -0.45,1 -1,1H4c-0.55,0 -1,-0.45 -1,-1V4c0,-0.55 0.45,-1 1,-1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7,9c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2z" />
+    <path
+        android:fillColor="#FF326CE5"
+        android:pathData="M4,13h16c0.55,0 1,0.45 1,1v6c0,0.55 -0.45,1 -1,1H4c-0.55,0 -1,-0.45 -1,-1v-6c0,-0.55 0.45,-1 1,-1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7,19c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2z" />
+</vector>

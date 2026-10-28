@@ -55,6 +55,7 @@ object CrdDiscovery {
         apiVersion = CRD_API_VERSION,
         resource = CRD_RESOURCE,
         namespaced = false,
+        iconVector = catalogIcon(CRD_API_VERSION, "CustomResourceDefinition"),
     ) { obj ->
         val served = obj.atList("spec", "versions")
             ?.count { it.asMap()?.flag("served") == true } ?: 0
@@ -127,6 +128,7 @@ object CrdDiscovery {
             apiVersion = "${crd.group}/$version",
             resource = crd.plural,
             namespaced = crd.namespaced,
+            iconVector = catalogIcon("${crd.group}/$version", crd.kind),
         ) { obj ->
             if (cols.isEmpty()) {
                 // Fallback (spec 07 "CR lists"): name/namespace are already

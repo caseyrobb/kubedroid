@@ -3,8 +3,10 @@ package com.neozeon.kubedroid.ui.resources
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.core.app.ApplicationProvider
@@ -151,5 +153,36 @@ class BrowseScreenTest {
             }
         }
         composeRule.onNodeWithText("Browse").assertIsDisplayed()
+    }
+
+    // ---- spec 08 stage 2: official kind icons on the browse grid ----
+
+    @Test fun browseTilesShowOfficialIcons() {
+        val (repository, id) = seededRepository()
+        val vm = BrowseViewModel(repository)
+        composeRule.setContent {
+            KubedroidTheme {
+                BrowseScreen(
+                    connectionId = id,
+                    viewModel = vm,
+                    onBack = {},
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        // Q6A: every catalog tile carries its official icon; the Custom
+        // Resources card carries crd.svg. (Assertions target contentDescription:
+        // the clickable Card merges descendant semantics, hiding child testTags.)
+        composeRule.onNodeWithContentDescription("Pod").assertIsDisplayed()
+        // LazyVerticalGrid only composes on-screen items — scroll until the
+        // bottom card materialises.
+        val grid = composeRule.onNodeWithTag("resource-grid")
+        for (i in 0 until 30) {
+            runCatching { grid.performScrollToIndex(i) }
+            if (composeRule.onAllNodesWithContentDescription("CustomResourceDefinition")
+                    .fetchSemanticsNodes().isNotEmpty()
+            ) break
+        }
+        composeRule.onNodeWithContentDescription("CustomResourceDefinition").assertIsDisplayed()
     }
 }

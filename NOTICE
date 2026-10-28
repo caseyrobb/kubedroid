@@ -1,0 +1,24 @@
+NOTICE
+======
+
+kubedroid includes artwork from the Kubernetes Icons Set:
+
+  https://github.com/kubernetes/community/tree/main/icons
+
+Copyright The Kubernetes Authors.
+
+This artwork is licensed, at your option, under the Apache License,
+Version 2.0 (vendored at tools/icons/LICENSE) or the Creative Commons
+Attribution 4.0 International License (CC-BY-4.0).
+
+The Kubernetes name and logo are registered trademarks of The Linux
+Foundation and are used subject to The Linux Foundation's Trademark Usage
+Guidelines (https://www.linuxfoundation.org/trademark-usage/). This project
+is not endorsed by or affiliated with The Linux Foundation.
+
+Attribution: "Contains Kubernetes Icons Set artwork, copyright The
+Kubernetes Authors, used under the Apache License 2.0." — also surfaced in
+the app's cluster-list About dialog.
+
+The Node icon (ic_k8s_node) is derived from the Material Icons "dns" glyph,
+copyright Google LLC, Apache License 2.0.

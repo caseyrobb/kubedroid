@@ -4,7 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,12 +29,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neozeon.kubedroid.data.kubernetes.CrdDefinition
+import com.neozeon.kubedroid.data.kubernetes.catalogIcon
 import java.util.UUID
 
 /**
@@ -126,27 +130,39 @@ fun CrdListScreen(
 @Composable
 private fun CrdRow(crd: CrdDefinition, onClick: () -> Unit) {
     val served = crd.servedVersions.size
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .testTag("crd-${crd.name}")
             .clickable(onClick = onClick),
+        verticalAlignment = Alignment.Top,
     ) {
-        Text(
-            crd.name,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+        // spec 08: official icon (kind icon if it collides with a built-in,
+        // crd.svg otherwise) — CRD rows resolve through catalogIcon too.
+        Icon(
+            painterResource(catalogIcon("${crd.group}/${crd.defaultVersion}", crd.kind)),
+            contentDescription = crd.kind,
+            modifier = Modifier
+                .size(28.dp)
+                .padding(end = 12.dp),
         )
-        Text(
-            "${crd.group} · ${crd.kind}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            "$served served version${if (served == 1) "" else "s"} · " +
-                if (crd.namespaced) "namespaced" else "cluster",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                crd.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "${crd.group} · ${crd.kind}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "$served served version${if (served == 1) "" else "s"} · " +
+                    if (crd.namespaced) "namespaced" else "cluster",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

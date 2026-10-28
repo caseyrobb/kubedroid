@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -31,7 +33,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neozeon.kubedroid.data.kubernetes.CatalogEntry
 import com.neozeon.kubedroid.data.kubernetes.CatalogGroup
+import com.neozeon.kubedroid.data.kubernetes.CrdDiscovery
 import com.neozeon.kubedroid.data.kubernetes.ResourceCatalog
+import com.neozeon.kubedroid.data.kubernetes.catalogIcon
 import com.neozeon.kubedroid.navigation.ResourceListKey
 import java.util.UUID
 
@@ -103,6 +107,16 @@ fun BrowseScreen(
                                 .clickable(onClick = onOpenCrds),
                         ) {
                             Column(Modifier.padding(14.dp)) {
+                                // spec 08: official crd icon (Q6A).
+                                Icon(
+                                    painterResource(
+                                        catalogIcon(CrdDiscovery.CRD_API_VERSION, "CustomResourceDefinition"),
+                                    ),
+                                    contentDescription = "CustomResourceDefinition",
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .testTag("icon-custom-resources"),
+                                )
                                 Text(
                                     "Custom Resources",
                                     style = MaterialTheme.typography.titleMedium,
@@ -150,6 +164,14 @@ private fun TypeCard(entry: CatalogEntry, onClick: () -> Unit) {
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            // spec 08: official kind icon on every browse tile (Q6A).
+            Icon(
+                painterResource(entry.iconVector),
+                contentDescription = entry.kind,
+                modifier = Modifier
+                    .size(32.dp)
+                    .testTag("icon-${entry.apiVersion}/${entry.resource}"),
+            )
             Text(entry.displayName, style = MaterialTheme.typography.titleMedium)
             Text(
                 "${entry.resource}.${entry.group.name.lowercase()}",
