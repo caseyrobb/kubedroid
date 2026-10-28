@@ -3,6 +3,7 @@ package com.neozeon.kubedroid.ui.cluster
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -166,5 +167,15 @@ class ClusterListScreenTest {
         composeRule.onNodeWithTag("context-item-prod-west").performClick()
         composeRule.waitForIdle()
         assertEquals("prod-west", registry.connections.value.single().contextName)
+    }
+
+    @Test fun spec08AboutDialogShowsAttribution() {
+        showScreen()
+        composeRule.onNodeWithTag("about").performClick()
+        composeRule.onNodeWithTag("about-attribution").assertIsDisplayed()
+        composeRule.onNodeWithText("Kubernetes Icons Set", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("about-dismiss").performClick()
+        composeRule.waitForIdle()
+        assertTrue(composeRule.onAllNodesWithTag("about-attribution").fetchSemanticsNodes().isEmpty())
     }
 }

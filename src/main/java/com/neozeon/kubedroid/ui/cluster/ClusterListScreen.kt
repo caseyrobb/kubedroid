@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -111,12 +112,40 @@ fun ClusterListScreen(
         }
     }
 
+    // spec 08 (Q7A): attribution for the Kubernetes Icons Set artwork.
+    var showAbout by remember { mutableStateOf(false) }
+    if (showAbout) {
+        AlertDialog(
+            onDismissRequest = { showAbout = false },
+            confirmButton = {
+                TextButton(onClick = { showAbout = false }, modifier = Modifier.testTag("about-dismiss")) {
+                    Text("Close")
+                }
+            },
+            text = {
+                Text(
+                    "Contains artwork from the Kubernetes Icons Set, " +
+                        "copyright The Kubernetes Authors, used under the " +
+                        "Apache License 2.0. Kubernetes is a registered " +
+                        "trademark of The Linux Foundation.",
+                    modifier = Modifier.testTag("about-attribution"),
+                )
+            },
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("kubedroid") },
                 actions = {
+                    IconButton(
+                        onClick = { showAbout = true },
+                        modifier = Modifier.testTag("about"),
+                    ) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "About")
+                    }
                     IconButton(
                         onClick = { viewModel.refreshActive() },
                         modifier = Modifier.testTag("refresh"),

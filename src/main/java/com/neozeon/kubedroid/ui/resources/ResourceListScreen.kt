@@ -20,6 +20,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
@@ -144,18 +148,29 @@ fun ResourceListScreen(
             // spec 07 (Q2): served-version chips for multi-version discovered
             // CRDs only — static types and single-version CRDs show nothing.
             if (state.versions.size > 1) {
-                Row(
+                // spec 08 (Q4A): single-select SegmentedButton for the served-
+                // version set — the expressive M3 component for a small fixed
+                // choice set. (Spec draft said namespace filter; namespace
+                // lists are unbounded so the scope dropdown stays — recorded
+                // as an amendment in docs/08.) Labels keep plain version text
+                // for the acceptance driver's substring matcher.
+                SingleChoiceSegmentedButtonRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp)
                         .testTag("version-chips"),
                 ) {
-                    state.versions.forEach { v ->
-                        TextButton(
+                    state.versions.forEachIndexed { index, v ->
+                        SegmentedButton(
+                            selected = v == state.selectedVersion,
                             onClick = { viewModel.selectVersion(v) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = state.versions.size,
+                            ),
                             modifier = Modifier.testTag("version-$v"),
                         ) {
-                            Text(if (v == state.selectedVersion) "• $v" else v)
+                            Text(v)
                         }
                     }
                 }
@@ -184,6 +199,17 @@ fun ResourceListScreen(
             state.deleteInfo?.let { DeleteInfoBanner(it, modifier = Modifier.padding(16.dp)) }
 
             val err = state.error
+            // spec 08 (Q4A): pull-to-refresh is the primary refresh affordance.
+            // The top-bar Refresh IconButton stays as a node the acceptance
+            // driver (and muscle memory) already targets.
+            PullToRefreshBox(
+                isRefreshing = state.loading && state.visibleItems.isNotEmpty(),
+                onRefresh = { viewModel.refresh() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag("pull-to-refresh"),
+            ) {
             when {
                 err != null -> Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -272,6 +298,7 @@ fun ResourceListScreen(
                     }
                 }
             }
+            } // PullToRefreshBox
 
             // spec 06 "Delete flow": shared confirmation dialog for the row
             // overflow entry (banners render above the list, see above).

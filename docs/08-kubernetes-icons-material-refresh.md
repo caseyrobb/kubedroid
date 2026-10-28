@@ -101,6 +101,14 @@ Working within the pinned BOM (no new artifacts unless a stage needs one):
 
 ## Design decisions
 
+- human decision (2026-10-27, stage 4 implementation): the SegmentedButton
+  lands on the CRD served-version set, not the namespace filter — namespace
+  lists are unbounded (dozens of entries) where M3 SegmentedButton is
+  designed for 2-5 fixed choices; the namespace scope dropdown is the
+  correct expressive-era component there. Version chips keep their
+  `version-<v>` testTags and plain-text labels so the acceptance driver
+  (which substring-matches version text) stays unchanged.
+
 - human decision (2026-10-27): all open questions answered Option A — Q1
   committed converted vectors; Q2 one-time documented conversion; Q3 official
   multicolor everywhere; Q4 expressive scope = theme tokens +
