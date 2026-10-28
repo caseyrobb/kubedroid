@@ -179,6 +179,12 @@ Working within the pinned BOM (no new artifacts unless a stage needs one):
 
 (Required once Qs resolve to `active`; stages below are the working plan.)
 
+**Implemented 2026-10-27** — stages 1-2 in `88f8593`, stages 3-5 in
+`be88259`; 306 unit tests green; full acceptance regression (spec 04-07
+chains, both emulator APIs) `ACCEPTANCE_PASS` with an untouched driver.
+Outstanding: on-device visual confirmation (Pixel 8a Material You, Pixel 7
+GrapheneOS fixed-blue identity) with `kubedroid-debug-be88259-spec08-ui.apk`.
+
 1. Stage 1 — Assets: vendor SVGs + license, convert, commit vectors, add
    `iconVector` to `CatalogEntry`, `catalogIcon()` helper, unit test mapping
    every static entry + CRD fallback.
