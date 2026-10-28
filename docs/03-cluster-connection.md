@@ -370,3 +370,11 @@ remains because no camera path remains.
     updated (no QR buttons asserted; new assertion that no "QR" node
     exists); full unit suite + lint + assemble green; acceptance driver
     untouched (it never used QR).
+11. **Probe version tag (2026-10-28, spec 11 store-screenshot pass).**
+    The Reachable chip rendered the raw `/version` body (`v: {"major":…}`),
+    which is not a "version tag" and looks broken at `maxLines = 1`. Probe
+    now parses `gitVersion` from the JSON body, falling back to a trimmed
+    raw prefix (then "ok") when the body is not JSON. Tests:
+    `ApiClientProviderTest` green-path assertion still holds (contains);
+    new fixture asserts non-JSON body yields the raw prefix and blank body
+    yields "ok". Acceptance driver untouched.

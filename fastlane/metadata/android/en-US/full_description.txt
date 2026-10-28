@@ -1,0 +1,22 @@
+kubedroid is a native Android client for browsing your own Kubernetes
+clusters. Import a kubeconfig (file or paste), pick a context, and browse
+workloads, pods, services and custom resources — with pod logs, live
+watch, YAML view and safe in-app editing behind a confirmation gate.
+
+Built for homelab and self-hosted clusters: it talks directly to the API
+server you point it at, supports client certificates, tokens and basic
+auth, custom CAs, and works over VPN on private networks.
+
+Privacy and security posture:
+
+* No telemetry, no analytics, no ad SDKs, no Google Play Services — the
+  app talks only to clusters you configure.
+* Kubeconfigs and credentials are stored encrypted at rest with keys in
+  the Android Keystore (AES-GCM, per-connection binding).
+* Credentials are never logged; secrets are redacted in all error paths.
+* The app holds no camera permission; there is no QR or web view.
+
+kubedroid is developed spec-driven: every feature ships with a written
+specification and test coverage in the public repository. Licensed under
+Apache-2.0. Contains artwork from the Kubernetes Icons Set and the CNCF
+Kubernetes icon (The Linux Foundation, Apache-2.0 / CC-BY-4.0).

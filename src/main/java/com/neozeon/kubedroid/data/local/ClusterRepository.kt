@@ -18,6 +18,9 @@ import javax.net.ssl.SSLException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 
 /** Test seam for wall time. */
@@ -119,7 +122,10 @@ class ClusterRepository @Inject constructor(
             client.httpClient.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful -> ConnectionStatus.Reachable(
-                        response.body.string().take(200).ifBlank { "ok" },
+                        // Spec 03 stage 11: show a version TAG — parse
+                        // gitVersion from the /version JSON; fall back to a
+                        // trimmed raw prefix (then "ok") for non-JSON bodies.
+                        versionTag(response.body.string()),
                     )
                     response.code == 401 ->
                         ConnectionStatus.Unreachable("API server rejected credentials (401)")
@@ -160,4 +166,19 @@ class ClusterRepository @Inject constructor(
             registry.connections.value.map { if (it.id == id) transform(it) else it },
         )
     }
+}
+
+/**
+ * Spec 03 stage 11: human-readable version tag from a `/version` body.
+ * Prefers `gitVersion`; non-JSON bodies fall back to a trimmed raw prefix
+ * (cap 40), blank bodies to "ok". Never throws.
+ */
+internal fun versionTag(body: String): String {
+    val trimmed = body.trim()
+    if (trimmed.isEmpty()) return "ok"
+    val gitVersion = runCatching {
+        Json.parseToJsonElement(trimmed).jsonObject["gitVersion"]
+            ?.jsonPrimitive?.content
+    }.getOrNull()
+    return gitVersion?.takeIf { it.isNotBlank() } ?: trimmed.take(40)
 }

@@ -22,3 +22,8 @@ the app's cluster-list About dialog.
 
 The Node icon (ic_k8s_node) is derived from the Material Icons "dns" glyph,
 copyright Google LLC, Apache License 2.0.
+
+The application/store icon is derived from the official Kubernetes icon
+(https://github.com/cncf/artwork, projects/kubernetes/icon/white),
+copyright The Linux Foundation, licensed CC-BY-4.0; rendered in
+KubernetesBlue.

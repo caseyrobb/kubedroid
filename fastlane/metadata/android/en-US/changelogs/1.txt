@@ -1,0 +1,6 @@
+First public release. Import kubeconfigs (file or paste), manage multiple
+clusters and contexts, browse workloads, pods, services and custom
+resources with official Kubernetes icons; pod logs with follow and save;
+pull-to-refresh; safe in-app editing behind a confirmation gate; dynamic
+Material You theming with a Kubernetes-blue fallback. Keystore-encrypted
+credential storage, zero telemetry, no camera permission.

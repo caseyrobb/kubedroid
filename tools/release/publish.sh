@@ -54,6 +54,23 @@ note "public-hygiene gate ok"
 tools/fdroid/foss-gate.sh || die "FOSS gate failed (spec 11)"
 note "FOSS gate ok"
 
+# fastlane/version gates (spec 11 stage 2, decisions Q5):
+VC="$(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' build.gradle.kts)"
+[[ -n "$VC" ]] || die "versionCode not found in build.gradle.kts"
+PREV_TAG="$(git describe --tags --abbrev=0 "$VERSION^" 2>/dev/null || true)"
+if [[ -n "$PREV_TAG" ]]; then
+  PREV_VC="$(git show "$PREV_TAG:build.gradle.kts" | sed -n 's/.*versionCode = \([0-9]*\).*/\1/p')"
+  (( VC > PREV_VC )) || die "versionCode $VC must exceed $PREV_VC (tag $PREV_TAG) — F-Droid requires monotonic increases"
+fi
+SD="fastlane/metadata/android/en-US/short_description.txt"
+[[ -f "$SD" ]] || die "missing $SD (fastlane metadata, spec 11)"
+SD_TEXT="$(head -1 "$SD")"
+(( ${#SD_TEXT} <= 80 )) || die "short_description exceeds 80 chars"
+[[ "$SD_TEXT" != *. ]] || die "short_description must not end with a dot"
+[[ -f "fastlane/metadata/android/en-US/changelogs/$VC.txt" ]] \
+  || die "fastlane changelogs/$VC.txt missing for versionCode $VC"
+note "fastlane/version gates ok (versionCode $VC)"
+
 # ---- build on the build host --------------------------------------------
 [[ -n "${KUBEDROID_BUILD_HOST:-}" ]] || die "KUBEDROID_BUILD_HOST not set (see docs/MAINTAINERS.md)"
 # Path (ON THE BUILD HOST) of the spec 09 signing properties; forwarded to
