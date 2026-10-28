@@ -315,6 +315,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         for kv in query.split("&"):
             if kv.startswith("container="):
                 container = kv.split("=", 1)[1]
+        # Realistic content negotiation (spec 05 amendment 2026-10-28): the
+        # API server accepts only json/yaml/protobuf for pods/log requests;
+        # anything else (e.g. a bare text/plain) earns a 406 NotAcceptable.
+        # Guards against the bug that shipped when the app asked for
+        # Accept: text/plain and 406'd on every real cluster.
+        accept = self.headers.get("Accept", "")
+        if accept and not any(m in accept for m in (
+                "*/*", "application/json", "application/yaml",
+                "application/vnd.kubernetes.protobuf")):
+            return 406, (b'{"kind":"Status","apiVersion":"v1","status":"Failure",'
+                        b'"message":"only the following media types are accepted: '
+                        b'application/json, application/yaml, '
+                        b'application/vnd.kubernetes.protobuf",'
+                        b'"reason":"NotAcceptable","code":406}')
         name = base.split("/")[6]
         if name == "web-nolog":
             return 403, (b'{"message":"pods \\"web-nolog\\" in namespace '

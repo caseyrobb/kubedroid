@@ -93,7 +93,7 @@ open class LogGateway @Inject constructor(
         // Follow streams must not trip the inherited read timeout on silence;
         // static tails keep the production timeouts (spec "Follow timeouts").
         val http = deriveHttp(resolved, request.follow)
-        val httpRequest = Request.Builder().url(url).header("Accept", "text/plain").get().build()
+        val httpRequest = Request.Builder().url(url).header("Accept", "application/json").get().build()
 
         val currentCall = java.util.concurrent.atomic.AtomicReference<Call?>(null)
 
@@ -163,7 +163,7 @@ open class LogGateway @Inject constructor(
             request.container, request.previous) {
             addQueryParameter("timestamps", "true")
         }
-        val httpRequest = Request.Builder().url(url).header("Accept", "text/plain").get().build()
+        val httpRequest = Request.Builder().url(url).header("Accept", "application/json").get().build()
         val call = resolved.http.newCall(httpRequest)
         coroutineContext[Job]?.invokeOnCompletion { cause ->
             if (cause != null) call.cancel()

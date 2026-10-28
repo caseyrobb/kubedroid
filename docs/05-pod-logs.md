@@ -115,7 +115,15 @@ authenticated client from `ApiClientProvider`, but **streaming**:
   parse (or a runtime that sent none) keeps `timestamp = null` and renders
   raw. Response body is text/plain per the API — **no JSON parsing**, so no
   Gson in this path.
-* `Accept: text/plain`; `Authorization` inherited from the spec 03 interceptor
+* `Accept: application/json`. Amendment 2026-10-28 (device report): the
+  original `text/plain` header earns a real-world **406 NotAcceptable** —
+  the API server's content negotiation for the `pods/log` subresource only
+  accepts `application/json`, `application/yaml`, or protobuf
+  (`only the following media types are accepted ...`, verified against k0s
+  1.36 with curl). The response body still arrives as plain text regardless,
+  so parsing behavior above is unchanged. `*/*` also works; json is chosen
+  for consistency with the spec 04 read path.
+  `Authorization` inherited from the spec 03 interceptor
   (never in the URL, never logged — rule unchanged).
 * Retry policy: **before first byte**, retry IOException/5xx ×2 with the
   injected `RetryBackoff` (same table as spec 04: 500 ms / 2 s). **After the
@@ -317,3 +325,12 @@ All answered by Casey 2026-10-25; decisions folded into the body above.
 5. **Acceptance + activation**: stub log routes (static/follow/chunk-drop/
    403), new driver steps incl. save-picker, run API 37 and API 26, docs
    sync, flip this spec to `active`.
+6. **Amendment 2026-10-28 — 406 on real clusters**: `LogGateway` sent
+   `Accept: text/plain`; real API servers reject that for `pods/log` with
+   406 NotAcceptable (negotiation only accepts json/yaml/protobuf; body is
+   plain text regardless). Header changed to `application/json` on both the
+   stream and save request paths, `LogGatewayTest` header assertion updated,
+   and the acceptance stub's log routes now emulate the server's negotiation
+   (any Accept lacking json/yaml/protobuf/`*/*` → 406 NotAcceptable) so a
+   regression can never again pass acceptance on the negotiation-blind stub.
+   Driver `acceptance.py` untouched.

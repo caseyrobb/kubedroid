@@ -89,7 +89,7 @@ class LogGatewayTest {
             "/api/v1/namespaces/web/pods/web-1/log?container=app&tailLines=1000&timestamps=true",
             recorded.path,
         )
-        assertEquals("text/plain", recorded.getHeader("Accept"))
+        assertEquals("application/json", recorded.getHeader("Accept"))
         assertEquals("Bearer LOG-TOKEN", recorded.getHeader("Authorization"))
 
         assertEquals(LogLine("2026-10-25T12:00:00.123Z", "hello world"),
