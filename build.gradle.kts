@@ -20,9 +20,36 @@ android {
         versionName = "0.1.0"
     }
 
+    // Spec 09: release signing, conditional on a local git-ignored
+    // properties file (see docs/09-release-signing.md). Absent -> unsigned
+    // release, exactly the pre-spec behavior.
+    val keystorePropsFile = rootProject.file(
+        System.getenv("KUBEDROID_KEYSTORE_PROPERTIES") ?: "keystore.properties",
+    )
+    val keystoreProps = java.util.Properties().apply {
+        if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+    }
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+        }
+        release {
+            isMinifyEnabled = false // R8 deferred (spec 09 Non-goals)
+            if (keystorePropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

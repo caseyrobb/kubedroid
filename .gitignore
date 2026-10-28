@@ -10,6 +10,7 @@ build/
 
 # Local configuration
 local.properties
+keystore.properties
 *.keystore
 *.jks
 .env
