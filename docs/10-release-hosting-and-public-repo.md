@@ -113,8 +113,9 @@ Survey already done (2026-10-28, HEAD `58608be`):
 * **Q5 — F-Droid**: yes, later — now scoped as spec 11
   (`docs/11-fdroid-distribution.md`, 2026-10-28). Note: the earlier claim
   "no proprietary deps" was wrong — `com.google.mlkit:barcode-scanning` is
-  a closed-source binary and must be replaced (spec 11 stage 1). No work in
-  this spec.
+  a closed-source binary; it was removed with the QR import feature
+  (spec 03 amendment stage 10, 2026-10-28), restoring FOSS-only status.
+  No work in this spec.
 * **Q6 — CI**: yes, hosted CI on GitHub where possible. A minimal
   test+assemble workflow is added at `.github/workflows/` NOW but guarded
   (`if: github.repository == 'caseyrobb/kubedroid'`) so it is inert on the
