@@ -1,5 +1,5 @@
 ---
-description: Cluster connection management — import kubeconfigs (file, paste, QR), manage multiple connections and contexts, store credentials in Keystore-encrypted storage, and build cached io.kubernetes client-java ApiClients per context.
+description: Cluster connection management — import kubeconfigs (file, paste — QR import removed by the 2026-10-28 amendment), manage multiple connections and contexts, store credentials in Keystore-encrypted storage, and build cached io.kubernetes client-java ApiClients per context.
 status: active
 ---
 
@@ -18,24 +18,25 @@ Client library: `io.kubernetes:client-java` — human decision recorded in
 
 In scope:
 
-* Import kubeconfig via SAF file picker, clipboard/paste, or QR code.
+* Import kubeconfig via SAF file picker or clipboard/paste.
+  (QR import was removed by the 2026-10-28 amendment — Dev plan stage 10;
+  the app must not request camera permission.)
 * Manage N saved connections; rename, set active, delete (with wipe).
 * Per-connection context selection; global active (connection, context).
 * Encrypted at-rest storage of kubeconfig payloads (Android Keystore).
 * `ApiClientProvider` building/caching one configured `ApiClient` per
   (connection, context), including TLS material.
 * Connection status probe (GET `/version`) with clear error mapping.
-* Companion JVM tool `tools/qr-export`: `kubedroid-qr <kubeconfig>` prints
-  chunked QR codes for import (human decision 2026-10-24: ships in this
-  repo). It must strip `exec:`/`auth-provider` blocks before export.
+* ~~Companion JVM tool `tools/qr-export`~~ — REMOVED by the 2026-10-28
+  amendment together with QR import (Dev plan stage 10).
 
 Out of scope (later specs / explicit non-goals):
 
 * Any Kubernetes resource browsing (spec 04).
 * Credential refresh flows: OAuth refresh tokens and exec plugins are NOT
   supported (see "Auth methods") — a clear error is surfaced instead.
-* Sharing/exporting kubeconfigs OUT of the app (QR export ships with the
-  companion tooling spec, not here; this spec only IMPLEMENTS import).
+* Sharing/exporting kubeconfigs OUT of the app in any form (the former
+  QR export path is gone with the 2026-10-28 amendment).
 * Biometric gate on opening the app (open question, below).
 
 ## Data model
@@ -81,8 +82,8 @@ re-issue it with a static token or client certificate").
 
 ## Import pipeline
 
-1. Source UI produces a raw UTF-8 kubeconfig string (file bytes, pasted
-   text, or reassembled QR payload).
+1. Source UI produces a raw UTF-8 kubeconfig string (file bytes or pasted
+   text).
 2. `KubeconfigParser.parse(raw)` validates structure, extracts
    clusters/users/contexts, classifies each context's auth method, and
    returns `ParsedKubeconfig` or a typed error. The raw bytes are never
@@ -95,17 +96,10 @@ re-issue it with a static token or client certificate").
    and sets it active.
 5. Home triggers `probe()` (below).
 
-QR format (chunked, because kubeconfigs exceed QR capacity):
-`kubedroid:1:<index>/<total>:<base64(json-chunk-bytes)>`, one QR per chunk,
-scanned in sequence; the scanner UI shows progress `i/n` and requires the
-chunks in order; reassembly validates the JSON and total count before
-handing the string to the pipeline. Producer side (export) is a companion
-CLI responsibility, not this app: `tools/qr-export` (plain JVM, dev plan
-stage 7) reads a kubeconfig, strips `exec:`/`auth-provider` user blocks
-(the app rejects them anyway, human decision 2026-10-24), wraps the result
-in the `QrEnvelopeCodec` envelope and emits chunks via `QrChunkCodec` —
-sharing the app's actual codec sources, not a reimplementation. CLI:
-`kubedroid-qr <kubeconfig> [--chunks|--png DIR] [--max-chars N]`.
+The former chunked QR transfer format (`kubedroid:1:<i>/<n>:<b64>`,
+`QrEnvelopeCodec`/`QrChunkCodec`, companion CLI `tools/qr-export`) was
+removed wholesale by the 2026-10-28 amendment (Dev plan stage 10); see
+that stage and the git history for the format details.
 
 ## Secure storage
 
@@ -156,21 +150,14 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
 
 * `ClusterListScreen`: Scaffold + TopAppBar "kubedroid"; connection rows
   (display name, context dropdown, status dot, warning badge), FAB "Add
-  cluster"; empty state with three import buttons (File / Paste / QR).
+  cluster"; empty state with two import buttons (File / Paste).
 * `AddClusterSheet`: three entry points →
   * File: `ActivityResultContracts.OpenDocument` launched with `*/*`
     (amended 2026-10-26: kubeconfig files often carry no recognizable MIME
     — `DocumentsUI` greys them out under a yaml/text filter list, making
     them impossible to select; the parser is the real validation gate);
   * Paste: multiline TextField + Validate button (inline typed errors);
-  * QR: `QrScannerDialog` (CameraX `PreviewView` hosted in `AndroidView` +
-    ML Kit analyzer) with chunk progress UI (`i/n`) and a Restart button —
-    a failed/out-of-order sequence requires a fresh `QrChunkCodec.Decoder`.
-    CameraX camera-compose was not used: its preview APIs churned;
-    `AndroidView` + `PreviewView` + `ProcessCameraProvider` is stable.
-    The scanned chunk stream reassembles into the JSON envelope
-    `{"version":1,"kubeconfig":"…"}` (`QrEnvelopeCodec`) — the contract
-    `tools/qr-export` (dev-plan stage 7) will produce.
+  * ~~QR~~ removed by the 2026-10-28 amendment (Dev plan stage 10).
 * Delete: long-press row → confirm dialog → wipe (no undo).
 * All screens behind `ClusterListViewModel` (StateFlow + one-shot events),
   `hiltViewModel()` per entry decorator from spec 02 — this is the first
@@ -183,20 +170,13 @@ loop; explicit pull-to-refresh on the list re-probes the active connection.
 | --- | --- | --- |
 | `io.kubernetes:client-java` | 27.0.0 | core client; brings OkHttp/Gson/SnakeYAML transitives |
 | `org.yaml:snakeyaml` | 2.5 | used directly by KubeconfigParser (own validation layer) |
-| `com.google.mlkit:barcode-scanning` | 17.3.0 | bundled model (works offline, no Play dependency) |
-| `androidx.camera:camera-core` | 1.6.2 | QR scanner |
-| `androidx.camera:camera-camera2` | 1.6.2 | |
-| `androidx.camera:camera-lifecycle` | 1.6.2 | |
-| `androidx.camera:camera-view` | 1.6.2 | `PreviewView` in an `AndroidView` |
 | `androidx.datastore:datastore-preferences` | 1.3.0 | cluster metadata registry |
 | `androidx.compose.material:material-icons-core` | (BOM) | `Icons.Filled.Refresh/Warning` |
 | `com.squareup.okhttp3:mockwebserver` | 5.4.0 | test only; must match the OkHttp 5.4.0 that client-java 27.0.0 resolves |
-| `com.google.zxing:core` | 3.5.4 | `tools/qr-export` only (QR encoding for terminal/PNG output); never in the APK |
 
-`tools/qr-export` is a plain-JVM Gradle project that shares the app's real
-sources (`QrChunkCodec`, `QrEnvelopeCodec`, `KubeconfigParser`, models) via
-`srcDir` rather than copying them, so it reuses the pins above (snakeyaml 2.5,
-kotlinx-serialization 1.9.0, kotlin 2.4.21) plus zxing.
+The former `tools/qr-export` companion project (plain JVM, shared codec
+sources, zxing) was removed with the QR feature by the 2026-10-28
+amendment.
 
 client-java Android caveats (resolved during dev-plan stage 1, 2026-10-24):
 `./gradlew build` is green with no core library desugaring (`ClientJavaSpikeTest`
@@ -208,17 +188,13 @@ drops duplicate `META-INF` license/INDEX files from the remaining Google auth
 transitives. ProGuard/R8: release builds add keep rules for Gson-serialized
 models; debug builds unaffected.
 
-ML Kit note (stage 5): the `BarcodeScanner` interface on the compile
-classpath comes from `play-services-mlkit-barcode-scanning` and its method
-is `process(InputImage)` — `processImage()` does not exist; calling it
-fails compilation. CameraX `ImageProxy.image` is `@ExperimentalGetImage`
-(a Java `@Experimental`, not Kotlin `@RequiresOptIn`): the Kotlin compiler
-is happy without opt-in but lint flags it, and lint ignores kotlin
-`@OptIn` for such annotations — the project-wide opt-in lives in
-`lint.xml` (`<option name="opt-in" …>` wired via `lint { lintConfig }`).
-`AndroidManifest.xml` gains `INTERNET`, `CAMERA` and
-`ACCESS_LOCAL_NETWORK` permissions (camera `required=false`; paste/file
-import works without a camera).
+Historical ML Kit/CameraX note (stage 5, REMOVED 2026-10-28): the QR
+scanner once required `com.google.mlkit:barcode-scanning` and four
+`androidx.camera:*` artifacts (with an `opt-in` lint option for CameraX
+`@ExperimentalGetImage`); all were dropped by the amendment.
+`AndroidManifest.xml` declares `INTERNET` and `ACCESS_LOCAL_NETWORK`
+only — `CAMERA` and `<uses-feature camera>` were REMOVED by the
+2026-10-28 amendment; the app never requests camera permission.
 
 **Local network access (stage 9, field finding).** On Android 16+
 (API 36), apps that *target* SDK 36+ are blocked at the kernel packet
@@ -254,7 +230,6 @@ so later specs don't drift):
 | Keystore key alias | `kubedroid-master` | KeystoreCipherVault |
 | GCM IV length | 12 bytes | KeystoreCipherVault |
 | Blob dir | `filesDir/connections` | ClusterRepository |
-| QR chunk prefix | `kubedroid:1:` | QrChunkCodec |
 
 ## Testing
 
@@ -264,8 +239,6 @@ Unit tests (JVM + Robolectric; fakes everywhere, no network):
   basic, static oidc), exec rejection message, bad YAML, PKCS#1 key
   acceptance (auto-wrap), impersonation strip warning, current-context
   selection.
-* `QrChunkCodecTest`: chunk/reassemble round trip, out-of-order chunk error,
-  corrupt base64, total-count mismatch, single-chunk config.
 * `FakeCipherVaultTest` + `CipherVaultContractTest`: AAD binding (decrypt
   with wrong id fails), IV uniqueness across encrypts, empty/large payload.
 * `ClusterRepositoryTest`: add/rename/delete order (DataStore entry removed
@@ -305,15 +278,9 @@ force-stop + relaunch ⇒ row restored (DataStore + Keystore decrypt);
 Refresh ⇒ second stub hit (ApiClient rebuild); long-press delete ⇒ row
 gone and `files/connections` empty; exec kubeconfig ⇒ inline
 `uses an exec credential plugin` error with zero stub traffic and no
-blob. Emulator camera injection is not used: the QR *scan* path is
-covered at codec level (`QrChunkCodecTest`, `QrEnvelopeCodecTest`) plus
-the chunk-progress UI. Stage 7 closed the export→scan loop automatically
-in `tools/qr-export` tests: a fixture kubeconfig goes through the real
-stripper → `QrEnvelopeCodec` → `QrChunkCodec` chunks → the app's
-`QrChunkCodec.Decoder` fed strictly in order → `QrEnvelopeCodec.decode` →
-app `KubeconfigParser` must return Valid with no exec/auth-provider
-(plus a zxing render→re-decode test per chunk). Physical camera scan
-remains a manual check on a real device.
+blob. The former QR export→scan loop tests in `tools/qr-export` were removed
+with the QR feature (2026-10-28 amendment); no camera/emulator coverage
+remains because no camera path remains.
 
 ## Acceptance criteria
 
@@ -321,8 +288,7 @@ remains a manual check on a real device.
   oidc) from Paste produces a green status dot against a MockWebServer.
 * Importing an exec-plugin kubeconfig shows the specific unsupported-auth
   error naming `exec:`; no crash; nothing persisted (blob dir empty).
-* File import via SAF and QR import (scan pre-generated chunks) both reach
-  the same validated end state as Paste.
+* File import via SAF reaches the same validated end state as Paste.
 * Killing and relaunching the app restores connections, active selection,
   and produces a working `ApiClient` (probe green again).
 * Deleting a connection removes both DataStore entry and blob file, and
@@ -345,10 +311,7 @@ remains a manual check on a real device.
 
 ## Open questions
 
-* **QR payload source**: the companion `kubedroid qr <kubeconfig>` CLI
-  (which also must strip exec/auth-provider blocks before export) — build
-  it as part of this spec's repo, as a separate small JVM tool, or rely on
-  an external script for now? Build it as part of the spec's repo.
+* ~~QR payload source~~ — moot: QR import removed 2026-10-28.
 * **Basic auth**: keep supporting at import, or reject like exec (servers
   deprecated it)? Keep support at import as OpenShift clusters will be supported in the future.
 * **Multiple contexts pointing at same cluster**: any de-dup expectation,
@@ -393,3 +356,17 @@ remains a manual check on a real device.
    of LAN SYNs for apps targeting SDK 36+ when ungranted); probe
    unreachable text names the permission when it is missing. Unit tests
    for the helper + device verification per the Testing section.
+10. **QR feature removal (amendment, 2026-10-28, human decision).** The
+    app must not request camera permission, so the entire QR import path
+    goes: delete `ui/cluster/QrScannerDialog.kt`, `data/qr/QrChunkCodec.kt`
+    + `QrEnvelopeCodec.kt` and their tests, the `tools/qr-export` companion
+    project, the QR entry points in `ClusterListScreen` (empty state and
+    add sheet become File/Paste only), `CAMERA` permission +
+    `<uses-feature camera>` from the manifest, and the `mlkit`, CameraX
+    and zxing dependencies from the catalog. Supersedes dev-plan stages 5
+    and 7. Rationale: least-privilege posture and F-Droid FOSS policy
+    (ML Kit barcode-scanning is a closed-source binary; see spec 11).
+    Tests: QR test classes deleted with the feature; `ClusterListScreenTest`
+    updated (no QR buttons asserted; new assertion that no "QR" node
+    exists); full unit suite + lint + assemble green; acceptance driver
+    untouched (it never used QR).

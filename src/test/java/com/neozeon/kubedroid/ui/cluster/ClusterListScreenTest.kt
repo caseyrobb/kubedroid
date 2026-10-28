@@ -108,7 +108,7 @@ class ClusterListScreenTest {
         composeRule.onNodeWithText("No cluster connected").assertIsDisplayed()
         composeRule.onNodeWithText("Paste kubeconfig").assertIsDisplayed()
         composeRule.onNodeWithText("Open kubeconfig file").assertIsDisplayed()
-        composeRule.onNodeWithText("Scan QR code").assertIsDisplayed()
+        composeRule.onNodeWithText("Scan QR code").assertDoesNotExist() // spec 03 stage 10: QR removed, no camera use
         composeRule.onNodeWithText("Add cluster") // FAB
     }
 

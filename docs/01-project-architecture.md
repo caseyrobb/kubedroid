@@ -39,7 +39,7 @@ com.neozeon.kubedroid
 ├── ui/
 │   ├── theme/                         // Color/Type/Theme (Material 3)
 │   ├── adaptive/WindowSizeClassProvider.kt
-│   ├── cluster/                       // ClusterListScreen/ViewModel, QrScannerDialog
+│   ├── cluster/                       // ClusterListScreen/ViewModel
 │   ├── resources/                     // Browse, ResourceList, ResourceDetail screens+VMs,
 │   │                                  //   ResourceScene (adaptive two-pane), SummaryRows
 │   ├── crd/                           // CrdListScreen/CrdListViewModel (spec 07)
@@ -53,12 +53,10 @@ com.neozeon.kubedroid
 │   ├── repository/                    // ResourceRepository, LogRepository, CrdRepository
 │   ├── local/                         // ClusterRepository, BlobStore, CipherVault (+Keystore impl), PayloadHash
 │   ├── registry/                      // ClusterRegistry interface + DataStoreClusterRegistry
-│   └── qr/                            // QrEnvelopeCodec / QrChunkCodec (chunked QR kubeconfig transfer)
 └── util/YamlRenderer.kt               // deterministic YAML for the detail view + edit drafts
 ```
 
-Outside the app module: `tools/qr-export/` (standalone plain-JVM Gradle
-project sharing app sources for the QR CLI) and `tools/acceptance/`
+Outside the app module: `tools/acceptance/`
 (emulator E2E driver + TLS stub, see spec 03/04/05 Testing).
 
 ## **Key Components**
@@ -176,8 +174,9 @@ Build: AGP 9 (built-in Kotlin — do not apply the Kotlin plugin), compileSdk
 37 (`platforms;android-37.0`), minSdk 26, JDK 21; deps pinned in
 `libs.versions.toml` (client-java 27.0.0, MockWebServer 5.4.0,
 Robolectric 4.17 with `--add-opens`/`--add-exports`, Compose BOM,
-Navigation 3, Hilt, DataStore, CameraX for QR import; zxing 3.5.4 is
-`tools/qr-export` only — never in the APK). Material icons are the
+Navigation 3, Hilt, DataStore). The former QR import stack (CameraX +
+ML Kit + zxing `tools/qr-export`) was removed 2026-10-28 (spec 03
+stage 10) — the app holds no camera permission. Material icons are the
 **core set only** — extended icons do not resolve; use text buttons.
 Canonical build/test machine is the maintainer build host (see
 docs/MAINTAINERS.md); the maintainer workstation holds the git/file mirror.

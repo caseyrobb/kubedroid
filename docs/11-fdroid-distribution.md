@@ -22,11 +22,11 @@ Supersedes the deferral note in spec 10 decision Q5.
 ## Current state (audited 2026-10-28)
 
 - License: Apache-2.0 with NOTICE for Kubernetes art — inclusion-policy OK.
-- All dependencies are FOSS (androidx/Compose/Hilt/kotlinx/snakeyaml/
-  client-java stack) **except** `com.google.mlkit:barcode-scanning:17.3.0`
-  — a closed-source Google binary used only by
-  `src/main/java/com/neozeon/kubedroid/ui/cluster/QrScannerDialog.kt`.
-  F-Droid rejects non-FOSS dependencies outright.
+- Dependencies are FOSS (androidx/Compose/Hilt/kotlinx/snakeyaml/
+  client-java stack). The former non-FOSS outlier
+  `com.google.mlkit:barcode-scanning:17.3.0` was REMOVED together with the
+  QR import feature (human decision 2026-10-28; spec 03 amendment, Dev plan
+  stage 10) — the app now holds no camera permission at all.
 - Release tags exist (spec 10); `publish.sh` already enforces tag/version
   gates. F-Droid requires a tag per official release — satisfied.
 - No fastlane metadata in the repo yet; no reproducible-build setup;
@@ -55,12 +55,10 @@ Supersedes the deferral note in spec 10 decision Q5.
 
 ## Design sketch
 
-- **Scanner swap**: keep CameraX; replace ML Kit's `BarcodeScanning` call
-  with ZXing core (`com.google.zxing:core`, Apache-2.0 — the same approach
-  zxing-embedded uses): CameraX `ImageAnalysis` → grayscale luminance →
-  `BinaryBitmap`/`MultiFormatReader` → decoded text → existing kubeconfig
-  import hand-off. Single-file change plus a decode-failure path (ML Kit
-  exceptions and ZXing `NotFoundException` differ).
+- **Camera surface: none.** QR import was removed outright (spec 03
+  amendment stage 10), so no scanner dependency — FOSS or otherwise — is
+  needed, and `CAMERA` is not in the manifest. This also moots the
+  Play-era camera permission declaration.
 - **FOSS dependency gate**: Gradle task (or unit test over
   `libs.versions.toml`) that fails the build on a denylist of known
   non-FOSS coordinate prefixes (`com.google.mlkit`, `com.google.android.gms`,
@@ -105,9 +103,12 @@ Supersedes the deferral note in spec 10 decision Q5.
 
 ## Dev plan
 
-1. **Stage 1 — FOSS compliance**: ZXing scanner swap in `QrScannerDialog`
-   + unit tests; denylist FOSS gate task wired into `publish.sh`; remove
-   mlkit from `libs.versions.toml`.
+1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
+   `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,
+   `com.google.firebase`, … coordinates); regression test asserting the
+   manifest requests no `CAMERA` and the catalog contains no denied
+   prefixes. (The mlkit/CameraX/zxing removal itself already landed with
+   spec 03 stage 10.)
 2. **Stage 2 — in-repo metadata**: fastlane `en-US` tree incl. deterministic
    emulator screenshots + changelogs for v0.1.0; metadata validation test;
    publish.sh gate additions (short_description limits, changelog exists for
@@ -123,11 +124,10 @@ Supersedes the deferral note in spec 10 decision Q5.
 
 ## Testing
 
-- Stage 1: JVM unit test decodes a golden kubeconfig QR fixture through the
-  new analyzer path (fake `ImageProxy` / bitmap → expected text); negative
-  test asserts a no-QR frame raises the typed not-found path; existing
-  acceptance step "import via QR" (spec 03) re-run green; FOSS gate task has
-  a fixture test proving a denylisted coordinate fails the build.
+- Stage 1: FOSS gate task has a fixture test proving a denylisted
+  coordinate fails the build; manifest regression test asserts no
+  `CAMERA` permission; import flows (file/paste) covered by the existing
+  spec 03 suites — no scanner tests exist by design.
 - Stage 2: unit tests over fastlane files (short_description <80 + no
   trailing dot, changelog present for current versionCode, screenshots
   exist and are non-empty PNGs); full 46-step acceptance suite stays green.
@@ -151,7 +151,7 @@ Supersedes the deferral note in spec 10 decision Q5.
   metadata at a tagged release.
 - reprotest A-B/B-B clean; F-Droid publishes our signed APK (cert digest
   `8aa62040…93acd2` visible on the F-Droid APK page).
-- FOSS gate has zero denylist hits; mlkit coordinate gone.
+- FOSS gate has zero denylist hits; mlkit/CameraX/zxing coordinates gone; manifest has no `CAMERA` permission.
 - fastlane metadata complete in upstream repo (en-US) and referenced, not
   duplicated, in fdroiddata.
 - Pixel 8a: F-Droid client installs the app over the Gitea-sideloaded

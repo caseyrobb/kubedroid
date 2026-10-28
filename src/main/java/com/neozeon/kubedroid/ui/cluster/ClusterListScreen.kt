@@ -91,7 +91,6 @@ fun ClusterListScreen(
     }
 
     var showAddSheet by remember { mutableStateOf(false) }
-    var showQrScanner by remember { mutableStateOf(false) }
 
     val fileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -170,7 +169,6 @@ fun ClusterListScreen(
                     fileLauncher.launch(arrayOf("*/*"))
                 } },
                 onPaste = { viewModel.openAdd() },
-                onQr = { showQrScanner = true },
             )
         } else {
             Column(
@@ -220,13 +218,6 @@ fun ClusterListScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Paste") }
-                Button(
-                    onClick = {
-                        showAddSheet = false
-                        showQrScanner = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("QR code") }
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -234,16 +225,6 @@ fun ClusterListScreen(
 
     draft?.let { current ->
         AddClusterDialog(current, viewModel)
-    }
-
-    if (showQrScanner) {
-        QrScannerDialog(
-            onDismiss = { showQrScanner = false },
-            onKubeconfig = { kubeconfig ->
-                showQrScanner = false
-                viewModel.openAdd(kubeconfig)
-            },
-        )
     }
 
     pendingDelete?.let { id ->
@@ -271,7 +252,6 @@ private fun EmptyState(
     modifier: Modifier = Modifier,
     onFile: () -> Unit,
     onPaste: () -> Unit,
-    onQr: () -> Unit,
 ) {
     Column(
         modifier = modifier.fillMaxSize().padding(24.dp),
@@ -283,8 +263,6 @@ private fun EmptyState(
         Button(onClick = onPaste, modifier = Modifier.fillMaxWidth()) { Text("Paste kubeconfig") }
         Spacer(Modifier.height(8.dp))
         Button(onClick = onFile, modifier = Modifier.fillMaxWidth()) { Text("Open kubeconfig file") }
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onQr, modifier = Modifier.fillMaxWidth()) { Text("Scan QR code") }
     }
 }
 

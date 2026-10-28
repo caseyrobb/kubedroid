@@ -12,7 +12,7 @@ on-device in the Android Keystore.
 ## Features
 
 - **Cluster connections** — import kubeconfig via file picker, paste, or
-  QR-chunk scanning; client-certs, tokens, and basic auth; per-cluster
+  client-certs, tokens, and basic auth; per-cluster
   TLS trust pinned to the kubeconfig CA. (spec 03)
 - **Resource browsing** — official Kubernetes icons for 30+ kinds,
   namespace filtering, label/name filters, summaries, YAML detail view.

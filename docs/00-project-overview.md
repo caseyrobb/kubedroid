@@ -15,7 +15,7 @@ kubedroid is a modern, adaptive Android Kubernetes client that lets users inspec
 ## **Core Features (MVP)**
 
 * **Cluster connection management**
-  Import and manage one or more kubeconfigs (file import, paste, or QR). Support context switching. Store credentials securely.
+  Import and manage one or more kubeconfigs (file import or paste). Support context switching. Store credentials securely.
 * **Resource browsing**
   List and search the common core resources:
   Pods, Services, Deployments, ReplicaSets, DaemonSets, StatefulSets, Nodes, Namespaces, ConfigMaps, Secrets (redacted by default), Jobs, CronJobs, PersistentVolumeClaims, etc.
