@@ -133,3 +133,11 @@ Survey already done (2026-10-28, HEAD `58608be`):
    end-to-end verification from a clean machine (download, `sha256sum -c`,
    `apksigner verify`), acceptance criteria review, docs sync, wiki
    milestone.
+6. **GitHub migration checklist (deferred, per decisions Q1/Q2).** When
+   the public launch (~v1.0) moves the repo to
+   `github.com/caseyrobb/kubedroid` as sole source: the tree pushed there
+   MUST NOT contain `docs/MAINTAINERS.md` (it intentionally holds homelab
+   hostnames; keep it out of the public branch/fork), `publish.sh`
+   switches `KUBEDROID_RELEASE_BACKEND=github` once `upload_github()` is
+   implemented, and the guarded CI activates automatically via its
+   repository `if`.
