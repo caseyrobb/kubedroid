@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     // NOTE: no org.jetbrains.kotlin.android — Kotlin support is built into AGP 9+
@@ -26,7 +28,7 @@ android {
     val keystorePropsFile = rootProject.file(
         System.getenv("KUBEDROID_KEYSTORE_PROPERTIES") ?: "keystore.properties",
     )
-    val keystoreProps = java.util.Properties().apply {
+    val keystoreProps = Properties().apply {
         if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
     }
 
