@@ -1,6 +1,6 @@
 ---
-description: Ship kubedroid on F-Droid instead of Google Play — replace the non-FOSS ML Kit barcode scanner, add in-repo fastlane metadata, gate on a FOSS dependency audit, achieve reproducible builds so F-Droid publishes our own signing key, and submit the fdroiddata merge request.
-status: proposed
+description: Ship kubedroid on F-Droid instead of Google Play — FOSS dependency gate (the non-FOSS ML Kit scanner is already gone with QR removal), in-repo fastlane metadata, reproducible builds so F-Droid publishes our own signing key, and the fdroiddata merge request after GitHub migration.
+status: active
 ---
 
 # Spec 11 — F-Droid distribution
@@ -80,26 +80,24 @@ Supersedes the deferral note in spec 10 decision Q5.
   emits the ready-to-paste fdroiddata YAML block with the full commit hash.
   Upload/publish itself stays with the human-submitted MR.
 
-## Open questions
+## Decisions (human, 2026-10-28)
 
-- **Q1 — Scanner swap scope**: replace ML Kit outright (single code path,
-  recommended) vs keeping ML Kit behind a non-F-Droid flavor?
-- **Q2 — Reproducible builds from the first submission**: recommended yes —
-  deferred repro builds lock us into the F-Droid key and force a future
-  reinstall for all users.
-- **Q3 — Submission upstream**: wait for the spec 10 stage 6 GitHub
-  migration and submit against `github.com/caseyrobb/kubedroid`, or submit
-  now against the (public?) Gitea repo and rewrite the fdroiddata `Repo`
-  field at migration? A `Repo` change is allowed but looks unstable to
-  reviewers; recommendation: migrate first.
-- **Q4 — Category/wording**: dev tools category; suggested summary
-  "Kubernetes cluster browser for self-hosted clusters" — confirm wording.
-- **Q5 — VersionCode story**: keep manual versionCode bumps with a
-  publish.sh monotonicity gate, or derive versionCode from tag
-  (major*10000+minor*100+patch)? F-Droid only demands monotonic increase.
-- **Q6 — Update checks**: F-Droid client handles update notifications;
-  confirm the spec 10 Q3 deferral of an in-app updater still stands (no
-  in-app check).
+Spec approved 2026-10-28 with the recommended defaults adopted:
+
+* **Q1 — Scanner swap scope**: mooted — QR import was removed entirely
+  (spec 03 amendment stage 10), so no scanner dependency exists at all.
+* **Q2 — Reproducible builds from the first submission**: YES. Deferred
+  repro builds would permanently lock us to the F-Droid signing key and
+  force a future reinstall for all users.
+* **Q3 — Submission upstream**: migrate first — submit the fdroiddata
+  MR against `github.com/caseyrobb/kubedroid` after the spec 10 stage 6
+  migration; no `Repo` field churn.
+* **Q4 — Category/wording**: dev tools category; short description
+  "Kubernetes cluster browser for self-hosted clusters".
+* **Q5 — VersionCode**: keep manual bumps with a publish.sh monotonicity
+  gate (fail the build if versionCode <= last tag).
+* **Q6 — Update checks**: no in-app updater; the F-Droid client owns
+  update notifications (spec 10 Q3 deferral stands).
 
 ## Dev plan
 

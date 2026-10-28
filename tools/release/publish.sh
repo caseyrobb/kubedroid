@@ -50,6 +50,10 @@ if git grep -n -iE "$HYGIENE_PATTERN" -- 'docs/0*' 'src/*' 'tools/*' README.md C
 fi
 note "public-hygiene gate ok"
 
+# FOSS gate (spec 11): no non-FOSS coordinates, no CAMERA permission.
+tools/fdroid/foss-gate.sh || die "FOSS gate failed (spec 11)"
+note "FOSS gate ok"
+
 # ---- build on the build host --------------------------------------------
 [[ -n "${KUBEDROID_BUILD_HOST:-}" ]] || die "KUBEDROID_BUILD_HOST not set (see docs/MAINTAINERS.md)"
 # Path (ON THE BUILD HOST) of the spec 09 signing properties; forwarded to
