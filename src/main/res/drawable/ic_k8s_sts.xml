@@ -1,32 +1,40 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="18dp"
-    android:height="17dp"
-    android:viewportWidth="18.035334"
-    android:viewportHeight="17.500378">
-    <group
-        android:translateX="-0.99"
-        android:translateY="-1.17">
-        <path
-            android:pathData=""/>
-        <path
-            android:pathData=""/>
-        <group
-            android:translateX="0.27"
-            android:translateY="1.09">
-            <path
-                android:pathData="M8.05 5.13l6.53 0 0 4.58-6.53 0z"/>
-            <path
-                android:pathData="M6.51 6.54l6.53 0 0 4.58-6.53 0z"/>
-            <path
-                android:pathData="M4.98 7.95l6.52 0 0 4.59-6.52 0z"/>
-            <path
-                android:pathData="M4.98 7.95l6.52 0 0 4.59-6.52 0z"/>
-            <path
-                android:pathData="M5.51 9.23l0 0c0-0.43 1.22-0.78 2.73-0.78 1.51 0 2.73 0.35 2.73 0.78l0 0c0 0.43-1.22 0.78-2.73 0.77-1.51 0-2.73-0.35-2.73-0.77z"/>
-            <path
-                android:pathData="M10.97 9.23l0 0c0 0.43-1.22 0.78-2.73 0.77-1.51 0-2.73-0.35-2.73-0.77l0 0c0-0.43 1.22-0.78 2.73-0.78 1.51 0 2.73 0.35 2.73 0.78l0 2.1c0 0.43-1.22 0.78-2.73 0.78-1.51 0-2.73-0.35-2.73-0.78l0-2.1"/>
-            <path
-                android:pathData="M10.97 9.23l0 0c0 0.43-1.22 0.78-2.73 0.77-1.51 0-2.73-0.35-2.73-0.77l0 0c0-0.43 1.22-0.78 2.73-0.78 1.51 0 2.73 0.35 2.73 0.78l0 2.1c0 0.43-1.22 0.78-2.73 0.78-1.51 0-2.73-0.35-2.73-0.78l0-2.1"/>
-        </group>
-    </group>
+    android:width="68dp"
+    android:height="66dp"
+    android:viewportWidth="18.035"
+    android:viewportHeight="17.5">
+    <path
+        android:fillColor="#FF326CE5"
+        android:pathData="M8.99 0.46a1.14 1.13 0 0 0-0.43 0.11l-5.94 2.84a1.14 1.13 0 0 0-0.62 0.77L0.54 10.55a1.14 1.13 0 0 0 0.15 0.86 1.14 1.13 0 0 0 0.07 0.09l4.11 5.12a1.14 1.13 0 0 0 0.89 0.42l6.59 0a1.14 1.13 0 0 0 0.89-0.43l4.11-5.11a1.14 1.13 0 0 0 0.22-0.95l-1.47-6.38a1.14 1.13 0 0 0-0.61-0.76L9.54 0.57a1.14 1.13 0 0 0-0.55-0.11"/>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.99 0a1.2 1.19 0 0 0-0.46 0.12L2.26 3.11a1.2 1.19 0 0 0-0.65 0.81L0.07 10.65a1.2 1.19 0 0 0 0.16 0.91 1.2 1.19 0 0 0 0.07 0.1l4.34 5.39a1.2 1.19 0 0 0 0.93 0.45l6.96 0a1.2 1.19 0 0 0 0.94-0.45l4.34-5.4a1.2 1.19 0 0 0 0.23-1l-1.55-6.73a1.2 1.19 0 0 0-0.65-0.81L9.57 0.12A1.2 1.19 0 0 0 8.99 0m0 0.46a1.14 1.13 0 0 1 0.55 0.11l5.94 2.84a1.14 1.13 0 0 1 0.62 0.76l1.47 6.38a1.14 1.13 0 0 1-0.22 0.95l-4.11 5.12a1.14 1.13 0 0 1-0.89 0.42l-6.59 0a1.14 1.13 0 0 1-0.89-0.42L0.76 11.5a1.14 1.13 0 0 1-0.07-0.09 1.14 1.13 0 0 1-0.15-0.86l1.46-6.37a1.14 1.13 0 0 1 0.62-0.77L8.56 0.57a1.14 1.13 0 0 1 0.43-0.11"/>
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth=".529"
+        android:pathData="M7.33 5.05h6.52v4.58H7.33z"/>
+    <path
+        android:fillColor="#FF326CE5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth=".529"
+        android:fillType="evenOdd"
+        android:pathData="M5.79 6.46h6.53v4.58H5.79z"/>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M4.25 7.87h6.53v4.58H4.25z"/>
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth=".529"
+        android:pathData="M4.25 7.87h6.53v4.58H4.25z"/>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M4.79 9.14c0-0.43 1.22-0.78 2.72-0.77s2.73 0.35 2.73 0.77-1.22 0.78-2.73 0.78-2.73-0.35-2.73-0.78"/>
+    <path
+        android:pathData="M10.24 9.14c0 0.43-1.22 0.78-2.73 0.78s-2.73-0.35-2.73-0.78 1.22-0.78 2.73-0.77 2.73 0.35 2.73 0.77v2.11c0 0.43-1.22 0.78-2.73 0.77s-2.73-0.35-2.73-0.77V9.14"/>
+    <path
+        android:strokeColor="#FF326CE5"
+        android:strokeWidth=".529"
+        android:pathData="M10.24 9.14c0 0.43-1.22 0.78-2.73 0.78s-2.73-0.35-2.73-0.78 1.22-0.78 2.73-0.77 2.73 0.35 2.73 0.77v2.11c0 0.43-1.22 0.78-2.73 0.77s-2.73-0.35-2.73-0.77V9.14"/>
 </vector>

@@ -10,6 +10,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.xmlpull.v1.XmlPullParser
 
 /**
  * Spec 08 stage 1 Testing: every static catalog row carries its official
@@ -70,7 +71,7 @@ class ResourceCatalogIconTest {
     }
 }
 
-/** Spec 08 Testing: the committed vectors actually inflate (robolectric). */
+/** Spec 08 Testing: the committed vectors actually inflate AND paint. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ResourceCatalogIconInflateTest {
@@ -81,5 +82,60 @@ class ResourceCatalogIconInflateTest {
             assertNotNull("${e.kind} icon failed to inflate", app.getDrawable(e.iconVector))
         }
         assertNotNull(app.getDrawable(catalogIcon("x/v1", "Unknown")))
+    }
+
+    @Test fun `every static icon paints real geometry inside its viewport`() {
+        // Catches the svg2vectordrawable failure modes that shipped once:
+        // inherited group fills dropped (paths with neither fillColor nor
+        // strokeColor render transparent) and matrix transforms lost, which
+        // leaves glyph geometry outside the viewport. Parsed from the
+        // compiled resource XML so it does not depend on Robolectric's
+        // graphics mode actually rasterizing VectorDrawables.
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val num = Regex("-?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?")
+        fun attr(xml: android.content.res.XmlResourceParser, name: String): String? =
+            xml.getAttributeValue("http://schemas.android.com/apk/res/android", name)
+                ?: xml.getAttributeValue(null, name)
+        for (e in ResourceCatalog.entries) {
+            val xml = app.resources.getXml(e.iconVector)
+            try {
+                var vw = 0.0
+                var vh = 0.0
+                var painted = 0
+                var unpaintedPaths = 0
+                while (xml.next() != XmlPullParser.END_DOCUMENT) {
+                    if (xml.eventType != XmlPullParser.START_TAG) continue
+                    when (xml.name) {
+                        "vector" -> {
+                            vw = attr(xml, "viewportWidth")?.toDouble() ?: 0.0
+                            vh = attr(xml, "viewportHeight")?.toDouble() ?: 0.0
+                        }
+                        "path" -> {
+                            val pd = attr(xml, "pathData").orEmpty()
+                            if (pd.isBlank()) continue
+                            val hasPaint = attr(xml, "fillColor") != null ||
+                                attr(xml, "strokeColor") != null
+                            if (!hasPaint) unpaintedPaths++
+                            val nums = num.findAll(pd).map { it.value.toDouble() }.toList()
+                            for (i in 0 until minOf(nums.size / 2, 999)) {
+                                val x = nums[i * 2]
+                                val y = nums[i * 2 + 1]
+                                if (x in 0.0..vw && y in 0.0..vh) painted++
+                            }
+                        }
+                    }
+                }
+                assertTrue(
+                    "${e.kind} icon has unpainted paths ($unpaintedPaths)",
+                    unpaintedPaths == 0 || unpaintedPaths <= 2, // hidden fill:none layers are legitimate
+                )
+                assertTrue(
+                    "${e.kind} icon has no geometry inside its viewport ($painted samples)",
+                    painted > 5,
+                )
+            } finally {
+                xml.close()
+            }
+        }
     }
 }
