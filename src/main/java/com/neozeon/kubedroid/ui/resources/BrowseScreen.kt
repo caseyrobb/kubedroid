@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -113,6 +114,7 @@ fun BrowseScreen(
                                         catalogIcon(CrdDiscovery.CRD_API_VERSION, "CustomResourceDefinition"),
                                     ),
                                     contentDescription = "CustomResourceDefinition",
+                                    tint = Color.Unspecified,
                                     modifier = Modifier
                                         .size(32.dp)
                                         .testTag("icon-custom-resources"),
@@ -168,6 +170,7 @@ private fun TypeCard(entry: CatalogEntry, onClick: () -> Unit) {
             Icon(
                 painterResource(entry.iconVector),
                 contentDescription = entry.kind,
+                tint = Color.Unspecified,
                 modifier = Modifier
                     .size(32.dp)
                     .testTag("icon-${entry.apiVersion}/${entry.resource}"),

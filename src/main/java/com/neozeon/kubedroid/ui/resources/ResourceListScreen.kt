@@ -26,6 +26,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -251,6 +252,7 @@ fun ResourceListScreen(
                             Icon(
                                 painterResource(entry.iconVector),
                                 contentDescription = entry.kind,
+                                tint = Color.Unspecified,
                                 modifier = Modifier
                                     .size(64.dp)
                                     .testTag("empty-icon"),
@@ -344,6 +346,7 @@ private fun SummaryRow(
             Icon(
                 painterResource(iconVector),
                 contentDescription = kindLabel,
+                tint = Color.Unspecified,
                 modifier = Modifier
                     .size(24.dp)
                     .padding(end = 12.dp),
