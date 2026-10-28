@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Spec 03 emulator acceptance driver (devbox only).
+"""Spec 03 emulator acceptance driver (maintainer build host only).
 
 Boots the API 37 headless emulator, runs a TLS API stub with the throwaway
 CA, then drives the app over adb to exercise the acceptance criteria that

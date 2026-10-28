@@ -168,7 +168,7 @@ gains CRD routes (stage 4) behind the existing bearer gate.
 
 ## Testing
 
-Unit (JVM, devbox gate):
+Unit (JVM, build-host gate):
 
 * `CrdDiscoveryTest` — CRD JSON → `CrdDefinition` (namespaced + cluster,
   multi-version, printer columns, shortNames), malformed-CRD skip rules,
@@ -200,8 +200,9 @@ visible), `spec07-cr-detail-edit` (save a CR edit via PUT), `spec07-crd-403`.
 Full chain green on API 37 **and** API 26, existing steps untouched.
 
 Hardware build (stage 5): after activation, produce the installable APK
-(`assembleDebug`, debug-key signed) on the devbox, rsync it back to the
-GB10, and hand over the absolute path + `adb install -r` instructions.
+(`assembleDebug`, debug-key signed) on the build host, deliver it to the
+maintainer workstation, and hand over the absolute path + `adb install -r`
+instructions.
 
 ## Acceptance criteria
 
@@ -234,7 +235,7 @@ All answered 2026-10-26 (human decision 2026-10-26), resolved as follows:
 
 ## Dev plan
 
-Stages are sequential; each ends green on the devbox gate
+Stages are sequential; each ends green on the build-host gate
 (`testDebugUnitTest lintDebug assembleDebug`).
 
 1. **Stage 1 — amendments + discovery data layer**: apply the docs/04 and
@@ -259,5 +260,5 @@ Stages are sequential; each ends green on the devbox gate
    docs/01 sync, commit/push, wiki milestone, then the installable APK
    hand-off.
    *Complete 2026-10-26: activated with docs/01 synced to specs 02–07;
-   hardware APK built on the devbox and delivered to the GB10 for
-   real-device testing.*
+   hardware APK built on the build host and delivered to the maintainer
+   workstation for real-device testing.*

@@ -52,7 +52,7 @@ in `docs/01` (implementation order step 5).
 ## Dev plan
 
 Required per repo rules for this amended spec; stages are sequential, each
-ends with the devbox gate (`testDebugUnitTest lintDebug assembleDebug`).
+ends with the build-host gate (`testDebugUnitTest lintDebug assembleDebug`).
 
 1. **Stage 1 — amendments + mutation gateway/repository**. Apply the
    docs/04 amendment (supersede the read-only wording; docs/01 Deferred
@@ -175,7 +175,7 @@ for its fixture objects.
 
 ## Testing
 
-Unit (JVM/Robolectric, devbox gate):
+Unit (JVM/Robolectric, build-host gate):
 
 * `ResourceGatewayMutationTest` — MockWebServer: PUT success, PUT 409 →
   `Conflict`, PUT 422 message surfaced, DELETE 200/404 mapping, 403 verb

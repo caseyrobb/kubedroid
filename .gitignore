@@ -20,7 +20,7 @@ keystore.properties
 *.aab
 *.ap_
 *.dex
-release/
+/release/
 captures/
 .externalNativeBuild/
 .cxx/

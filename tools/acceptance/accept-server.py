@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Acceptance HTTPS stub for kubedroid spec 03 (devbox only, throwaway).
+"""Acceptance HTTPS stub for kubedroid spec 03 (maintainer build host only, throwaway).
 
 Serves /version like a kube-apiserver and logs every request line +
 Authorization header so tools/acceptance/acceptance.py can assert the app

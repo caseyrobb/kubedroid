@@ -179,8 +179,8 @@ Robolectric 4.17 with `--add-opens`/`--add-exports`, Compose BOM,
 Navigation 3, Hilt, DataStore, CameraX for QR import; zxing 3.5.4 is
 `tools/qr-export` only — never in the APK). Material icons are the
 **core set only** — extended icons do not resolve; use text buttons.
-Canonical build/test machine is devbox (`~/devbox-build.sh`); GB10 holds a
-git/file mirror only.
+Canonical build/test machine is the maintainer build host (see
+docs/MAINTAINERS.md); the maintainer workstation holds the git/file mirror.
 
 ## **Testing**
 

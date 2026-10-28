@@ -46,11 +46,12 @@ The password is machine-generated (`openssl rand`), never displayed.
 
 ## Configuration
 
-* Build host (devbox): `~/.android-kubedroid/release.keystore` (0600) and
+* Build host (see docs/MAINTAINERS.md for the concrete machine): the
+  release keystore (0600) and
   `keystore.properties` in `~/kubedroid/` (0600), mode `storePassword ==
   keyPassword`.
-* Backup copy of both files kept off the build host on the GB10 under
-  `~/kubedroid-keystore-backup/` (0600). Losing the keystore means release
+* Backup copies of both files kept off the build host (maintainer
+  workstation, 0600; exact paths in docs/MAINTAINERS.md). Losing the keystore means release
   APK signatures change — upgrades over existing installs would fail — so
   the backup is part of "done".
 

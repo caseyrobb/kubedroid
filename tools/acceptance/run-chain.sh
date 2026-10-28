@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # spec 05 acceptance chain: cleanup leftovers, then API 37 + API 26 runs.
-# Lives on the devbox so the ssh command line never contains the strings
+# Lives on the build host so the ssh command line never contains the strings
 # pgrep searches for (self-match killed the previous inline attempt).
 set -u
 export ANDROID_HOME=~/Android/Sdk
