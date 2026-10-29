@@ -22,6 +22,15 @@ android {
         versionName = "0.1.0"
     }
 
+    // Spec 11 stage 3: the AGP SDK-dependency blob (SDKP pair in the APK
+    // Signing Block) is version-stamped/encrypted and differs every build
+    // — it breaks reproducible builds and only feeds Play Console, which we
+    // do not use. Opt out (F-Droid publishes byte-reproducible APKs).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     // Spec 09: release signing, conditional on a local git-ignored
     // properties file (see docs/09-release-signing.md). Absent -> unsigned
     // release, exactly the pre-spec behavior.

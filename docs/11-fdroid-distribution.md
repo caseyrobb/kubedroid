@@ -117,6 +117,16 @@ stage 3 unblocked now, stage 4 gated on the spec 10 stage 6 migration.
 3. **Stage 3 — reproducible builds**: wrapper pinning, nondeterminism hunt,
    local reprotest (A-B/B-B) in the F-Droid builder image; document exact
    reproduction command.
+   FINDING (2026-10-28): A-B builds on the build host matched on every zip
+   entry (names, CRCs, timestamps) but differed in the APK Signing Block —
+   AGP's `dependenciesInfo` SDKP pair (0x504b4453), a version-stamped,
+   Play-encrypted blob, is per-build nondeterministic. Fix:
+   `dependenciesInfo { includeInApk = false; includeInBundle = false }`
+   (we never use Play Console, so the metadata has no value here). The
+   release key is RSA 3072 / SHA256withRSA — PKCS#1 v1.5 signatures are
+   deterministic, so a fully byte-reproducible signed APK is achievable.
+   After the opt-out, A-B double builds must hash-identical (gate scripted
+   in `tools/fdroid/repro-check.sh`).
 4. **Stage 4 — submission** (after spec 10 stage 6 migration, per Q3):
    generate `metadata/com.neozeon.kubedroid.yml`, open the fdroiddata MR
    with the standard checklist, follow up with packagers; device-verify the
