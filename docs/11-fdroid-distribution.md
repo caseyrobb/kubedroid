@@ -102,7 +102,11 @@ Spec approved 2026-10-28 with the recommended defaults adopted:
 ## Dev plan
 
 Status (2026-10-28): stages 1 and 2 complete (commits `bd368cb`, `39529c5`);
-stage 3 unblocked now, stage 4 gated on the spec 10 stage 6 migration.
+stage 3 locally verified (four from-scratch/incremental release builds all
+hash `80e6644c31481ddefec10d171632d33c78fe16dbaf17febe073f38afd137ec67`,
+cert digest matches the spec 09 pin); remaining: F-Droid builder-image
+reprotest, pending the build-host container decision. Stage 4 gated on the
+spec 10 stage 6 migration.
 
 1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
    `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,
