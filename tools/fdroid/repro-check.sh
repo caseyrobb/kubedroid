@@ -23,6 +23,9 @@ ssh "$HOST" "
   set -euo pipefail
   cd ~/kubedroid
   export KUBEDROID_KEYSTORE_PROPERTIES='$KS_PROPS'
+  # Both legs start from a wiped build dir: an F-Droid rebuilder works from
+  # a fresh clone, so an incremental A would not prove from-scratch builds.
+  rm -rf build
   bash -l ~/devbox-build.sh :assembleRelease >/tmp/reproA.log 2>&1 \
     || { tail -20 /tmp/reproA.log; exit 1; }
   cp build/outputs/apk/release/*.apk /tmp/repro-A.apk
