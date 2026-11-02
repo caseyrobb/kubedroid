@@ -92,6 +92,13 @@ def main():
                     if (fname, reason) not in reported:
                         reported.add((fname, reason))
                         print(f"REJECT {fname} ({reason} on {serial})", flush=True)
+                        # spec 12: keep the first dump per reject reason so
+                        # marker bugs can be diagnosed without re-running.
+                        with open(os.path.join(
+                            outdir,
+                            f"reject-{fname}-{len(reported)}.xml",
+                        ), "w") as fh:
+                            fh.write(xml)
                     continue
                 png = adb(serial, "exec-out", "screencap", "-p", binary=True).stdout
                 if png and png[:4] == b"\x89PNG":

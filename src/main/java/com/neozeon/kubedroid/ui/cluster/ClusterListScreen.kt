@@ -65,6 +65,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neozeon.kubedroid.data.kubernetes.LocalNetworkAccess
 import com.neozeon.kubedroid.data.model.ClusterConnection
 import com.neozeon.kubedroid.data.model.ConnectionStatus
+import com.neozeon.kubedroid.ui.common.MetaGrid
+import com.neozeon.kubedroid.ui.common.RelativeTime
+import com.neozeon.kubedroid.ui.status.ProbeStatus
+import com.neozeon.kubedroid.ui.status.StatusPill
+import java.time.Instant
 
 /**
  * Home body (replaces the spec 02 placeholder; HomeKey unchanged):
@@ -289,15 +294,20 @@ private fun ConnectionRow(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(connection.displayName, style = MaterialTheme.typography.titleMedium)
-                // Spec 03 "Connection probe": failure text is the mapped
-                // user-friendly message; reachability shows the version tag.
+                // Spec 12 stage 2: token pill + monospace micro-label grid
+                // replaces the ad-hoc "v:" text. Failure text is still the
+                // mapped user-friendly message (spec 03 "Connection probe").
+                StatusPill(ProbeStatus.resolve(status))
                 when (status) {
-                    is ConnectionStatus.Reachable -> Text(
-                        "v: ${status.serverVersion}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        modifier = Modifier.testTag("status-text"),
+                    is ConnectionStatus.Reachable -> MetaGrid(
+                        rows = listOf(
+                            "version" to status.serverVersion,
+                            "added" to RelativeTime.ago(
+                                Instant.ofEpochSecond(connection.addedAtEpochSec),
+                            ),
+                        ),
+                        columns = 2,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                     is ConnectionStatus.Unreachable -> Text(
                         // spec 03 stage 9: name the local-network permission

@@ -677,6 +677,14 @@ def run_app_flow(ca_b64):
          log_count(f"GET /version Auth=Bearer {TOKEN}") >= 1,
          "" if log_count(f"GET /version Auth=Bearer {TOKEN}") else logcat_errors())
 
+    # spec 03 stage 11 (chip renders the parsed gitVersion) + spec 12
+    # stage 2 (StatusPill/MetaGrid): wait for the version to actually
+    # render on the card, so later screens never race the async probe
+    # result and the render itself becomes an acceptance assertion.
+    _, chip = wait_node(text="v1.36.4")
+    step("probe-chip-rendered", chip is not None,
+         "" if chip is not None else "version metadata never rendered on card")
+
     root, row = wait_node(text="accept-east")
     if row is not None:
         step("row-visible", True)

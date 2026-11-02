@@ -180,8 +180,18 @@ acceptance re-green.
 1. **Stage 1 — token core**: `StatusTokens.kt` (tables, severity,
    resolvers) + `RelativeTime.kt`, pure JVM, unit-tested before any UI.
 2. **Stage 2 — cluster card**: `MetaGrid` + `StatusPill` on cluster list
-   rows (SERVER/CONTEXT/VERSION grid, probe token, last-probed relative
-   time). Re-green acceptance + regenerate store shot 2.png.
+   rows — DONE 2026-11-02. Deviation from draft text: server/context stay
+   as the existing tonal nav buttons (they are tap targets, not metadata);
+   the VERSION/ADDED grid carries probe version + `RelativeTime` "added".
+   `StatusPill(ProbeStatus.resolve(status))` replaces the ad-hoc `v:`/
+   "Unknown" text (Unreachable/Invalid keep their exact copy as pill
+   labels). Compose tests `StatusPillTest`/`MetaGridTest`; suite 339
+   green; device-verified pill + `v1.36.4` + `9s ago`. Driver amendment
+   (Q5 relax, same commit): new `probe-chip-rendered` step waits for the
+   parsed version to render on the card after `probe-hit-stub-with-token`
+   — makes the spec 03 stage 11 chip render an acceptance assertion and
+   removes the async-probe race that starved the screenshot monitor.
+   Re-green = full two-leg chain run (below).
 3. **Stage 3 — resource list**: status column as `StatusPill`, `HealthBar`
    under the app bar for pod-like kinds, sort sheet, status filter chips
    (client-side), label chips per Q3 decision.
