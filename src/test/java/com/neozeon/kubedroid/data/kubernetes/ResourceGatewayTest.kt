@@ -65,6 +65,19 @@ class ResourceGatewayTest {
         assertEquals("/api/v1/nodes?limit=500", server.takeRequest().path)
     }
 
+    @Test fun labelSelectorQueryParam() = runBlocking {
+        val server = newServer()
+        server.enqueue(MockResponse().setBody("""{"items":[],"metadata":{}}"""))
+        val f = Fixture(server)
+        gateway(f.f.provider, mutableListOf())
+            .list(f.id, "ctx1", ResourceCatalog.find("v1", "pods")!!, null,
+                labelSelector = "app=web,tier=front")
+        assertEquals(
+            "/api/v1/pods?limit=500&labelSelector=app%3Dweb%2Ctier%3Dfront",
+            server.takeRequest().path,
+        )
+    }
+
     @Test fun continueTokenUrlEncoded() = runBlocking {
         val server = newServer()
         server.enqueue(MockResponse().setBody("""{"items":[],"metadata":{"continue":"abc/123 x"}}"""))

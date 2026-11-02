@@ -52,9 +52,13 @@ open class ResourceGateway @Inject constructor(
         namespace: String?,
         limit: Long = PAGE_SIZE,
         continueToken: String? = null,
+        labelSelector: String? = null,
     ): Result {
         val resolved = resolve(connectionId, context)
-        val url = buildUrl(resolved.basePath, ResourceCatalog.listPath(entry, namespace), limit, continueToken)
+        val url = buildUrl(
+            resolved.basePath, ResourceCatalog.listPath(entry, namespace),
+            limit, continueToken, labelSelector,
+        )
         return executeWithRetry(resolved.http, url)
     }
 
@@ -127,10 +131,18 @@ open class ResourceGateway @Inject constructor(
         Result.Network(e.message ?: "io error")
     }
 
-    private fun buildUrl(basePath: String, path: String, limit: Long?, continueToken: String?): String {
+    private fun buildUrl(
+        basePath: String,
+        path: String,
+        limit: Long?,
+        continueToken: String?,
+        labelSelector: String? = null,
+    ): String {
         var builder = (basePath + path).toHttpUrl().newBuilder()
         if (limit != null) builder = builder.addQueryParameter("limit", limit.toString())
         if (continueToken != null) builder = builder.addQueryParameter("continue", continueToken)
+        // spec 12 (Q3): server-side label filtering chip rail.
+        if (!labelSelector.isNullOrBlank()) builder = builder.addQueryParameter("labelSelector", labelSelector)
         return builder.build().toString()
     }
 

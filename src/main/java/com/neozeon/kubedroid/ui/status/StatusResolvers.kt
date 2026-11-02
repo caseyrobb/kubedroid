@@ -108,6 +108,22 @@ fun resolveWorkload(obj: Map<String, Any?>): StatusToken {
     }
 }
 
+/** Kinds that get the workload readiness path in [resolveStatus]. */
+private val WORKLOAD_KINDS = setOf(
+    "Deployment", "StatefulSet", "ReplicaSet", "DaemonSet", "Job", "CronJob",
+)
+
+/**
+ * Kind dispatcher for list rows (spec 12 stage 3): pods take the phase
+ * path, known workloads the readiness path, everything else Unknown.
+ */
+fun resolveStatus(obj: Map<String, Any?>): StatusToken =
+    when (obj["kind"] as? String) {
+        "Pod" -> resolvePod(obj)
+        in WORKLOAD_KINDS -> resolveWorkload(obj)
+        else -> WorkloadStatus.UNKNOWN
+    }
+
 /** Which fleet-health bucket a token counts toward (health bar, goal 3). */
 fun healthBucket(token: StatusToken): HealthBucket = when (token) {
     PodStatus.FAILED, PodStatus.CRASH_LOOP, PodStatus.IMAGE_PULL -> HealthBucket.FAILED_RED

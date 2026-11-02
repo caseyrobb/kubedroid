@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,10 +18,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -51,6 +58,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neozeon.kubedroid.data.kubernetes.ResourceCatalog
 import com.neozeon.kubedroid.data.model.ResourceSummary
 import com.neozeon.kubedroid.navigation.ResourceDetailKey
+import com.neozeon.kubedroid.ui.status.HealthBar
+import com.neozeon.kubedroid.ui.status.StatusPill
 import java.util.UUID
 
 /**
@@ -58,7 +67,7 @@ import java.util.UUID
  * namespace scope dropdown, infinite scroll on the `continue` token, and the
  * 403 "pick a namespace" escape hatch.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ResourceListScreen(
     connectionId: UUID,
@@ -89,6 +98,7 @@ fun ResourceListScreen(
     }
 
     var scopeMenuOpen by remember { mutableStateOf(false) }
+    var sortSheetOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -101,6 +111,10 @@ fun ResourceListScreen(
                     }
                 },
                 actions = {
+                    // spec 12 goal 5: sort sheet (Name / Newest / Severity).
+                    IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.testTag("sort")) {
+                        Icon(Icons.Filled.List, contentDescription = "Sort")
+                    }
                     Box {
                         TextButton(
                             onClick = { scopeMenuOpen = true },
@@ -173,6 +187,52 @@ fun ResourceListScreen(
                         ) {
                             Text(v)
                         }
+                    }
+                }
+            }
+
+            // spec 12 goal 3: health bar + status chips, pod-like kinds only
+            // (Q2 decision); client-side over the loaded window (Q3).
+            if (state.error == null && state.items.isNotEmpty() &&
+                (entry?.kind ?: resource) in STATUS_KINDS
+            ) {
+                HealthBar(
+                    healthCounts(state.items),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .testTag("status-chips"),
+                ) {
+                    StatusFilter.values().forEach { f ->
+                        FilterChip(
+                            selected = state.statusFilter == f,
+                            onClick = { viewModel.selectStatusFilter(f) },
+                            label = { Text(f.chipLabel()) },
+                            modifier = Modifier.testTag("status-filter-${f.name}"),
+                        )
+                    }
+                }
+            }
+
+            // spec 12 goal 5 (Q3): label chips are a SERVER-side labelSelector
+            // affordance; candidates ranked by frequency over the loaded window.
+            val labelChips = topLabels(state.items)
+            if (labelChips.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                        .testTag("label-chips"),
+                ) {
+                    labelChips.forEach { l ->
+                        AssistChip(
+                            onClick = { viewModel.toggleLabel(l) },
+                            label = { Text(l) },
+                            modifier = Modifier.testTag("label-chip-$l"),
+                        )
                     }
                 }
             }
@@ -302,6 +362,25 @@ fun ResourceListScreen(
             }
             } // PullToRefreshBox
 
+            // spec 12 goal 5: sort sheet over the loaded window.
+            if (sortSheetOpen) {
+                ModalBottomSheet(onDismissRequest = { sortSheetOpen = false }) {
+                    ListSort.values().forEach { s ->
+                        ListItem(
+                            headlineContent = { Text(s.chipLabel()) },
+                            // testTag on the clickable node: clickable()
+                            // merges descendant semantics (known gotcha).
+                            modifier = Modifier
+                                .testTag("sort-option-${s.name}")
+                                .clickable {
+                                    sortSheetOpen = false
+                                    viewModel.selectSort(s)
+                                },
+                        )
+                    }
+                }
+            }
+
             // spec 06 "Delete flow": shared confirmation dialog for the row
             // overflow entry (banners render above the list, see above).
             state.deleteTarget?.let { summary ->
@@ -358,11 +437,19 @@ private fun SummaryRow(
                 summary.namespace?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(summary.primary, style = MaterialTheme.typography.bodySmall)
+                // spec 12: the pill already carries the state string for
+                // kinds with a resolver path — don't print it twice.
+                if (summary.primary != summary.statusToken.label) {
+                    Text(summary.primary, style = MaterialTheme.typography.bodySmall)
+                }
                 summary.secondary?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        }
+        // spec 12 goal 2: trailing status pill for kinds with a resolver path.
+        if (kindLabel in STATUS_KINDS) {
+            StatusPill(summary.statusToken, modifier = Modifier.padding(end = 4.dp))
         }
         // spec 06 "Delete flow": row overflow Delete (same dialog as detail).
         Box {

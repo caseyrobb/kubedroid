@@ -56,13 +56,15 @@ class ResourceListViewModel @Inject constructor(
         // ---- spec 07: discovered-CRD version chips (empty for static types) ----
         val versions: List<String> = emptyList(),
         val selectedVersion: String? = null,
+        // ---- spec 12 stage 3: sort sheet, status chips, server-side label chips ----
+        val sortBy: ListSort = ListSort.NAME,
+        val statusFilter: StatusFilter = StatusFilter.ALL,
+        /** Active `k=v` label filters, AND-joined into labelSelector server-side. */
+        val labelFilters: Set<String> = emptySet(),
     ) {
-        /** Client-side filter over name + label values (spec 04). */
+        /** Search + status chip + sort over the loaded window (spec 12). */
         val visibleItems: List<ResourceSummary>
-            get() = if (search.isBlank()) items else items.filter { s ->
-                s.name.contains(search, ignoreCase = true) ||
-                    s.labels.values.any { it.contains(search, ignoreCase = true) }
-            }
+            get() = filterVisible(items, search, statusFilter, sortBy)
     }
 
     private val _state = MutableStateFlow(UiState())
@@ -111,6 +113,31 @@ class ResourceListViewModel @Inject constructor(
 
     fun refresh() {
         val target = _state.value.target ?: return
+        fetch(target, _state.value.namespace)
+    }
+
+    // ---- spec 12 stage 3: sort sheet + status chips (client-side) and
+    // label chips (server-side labelSelector, Q3 decision) ----
+
+    fun selectSort(sort: ListSort) {
+        if (_state.value.sortBy != sort) _state.update { it.copy(sortBy = sort) }
+    }
+
+    fun selectStatusFilter(filter: StatusFilter) {
+        if (_state.value.statusFilter != filter) {
+            _state.update { it.copy(statusFilter = filter) }
+        }
+    }
+
+    /** Chip tap toggles a `k=v` filter; the list is re-queried server-side. */
+    fun toggleLabel(label: String) {
+        val target = _state.value.target ?: return
+        val next = _state.value.labelFilters.toMutableSet()
+        if (!next.add(label)) next.remove(label)
+        if (next == _state.value.labelFilters) return
+        _state.update {
+            it.copy(labelFilters = next, items = emptyList(), continueToken = null, error = null)
+        }
         fetch(target, _state.value.namespace)
     }
 
@@ -179,7 +206,11 @@ class ResourceListViewModel @Inject constructor(
         _state.update { it.copy(loadingMore = true) }
         val gen = ++generation
         scope.launch {
-            val r = repository.list(target.connectionId, target.apiVersion, target.resource, _state.value.namespace, token)
+            val r = repository.list(
+                target.connectionId, target.apiVersion, target.resource,
+                _state.value.namespace, token,
+                labelSelector = labelSelectorOf(_state.value.labelFilters),
+            )
             if (gen != generation) return@launch // superseded by a newer request
             _state.update { st ->
                 when (r) {
@@ -199,7 +230,10 @@ class ResourceListViewModel @Inject constructor(
         val gen = ++generation
         _state.update { it.copy(target = target, loading = true, error = null, continueToken = null) }
         fetchJob = scope.launch {
-            val r = repository.list(target.connectionId, target.apiVersion, target.resource, namespace)
+            val r = repository.list(
+                target.connectionId, target.apiVersion, target.resource, namespace,
+                labelSelector = labelSelectorOf(_state.value.labelFilters),
+            )
             if (gen != generation) return@launch // drop superseded response
             _state.update { st ->
                 when (r) {

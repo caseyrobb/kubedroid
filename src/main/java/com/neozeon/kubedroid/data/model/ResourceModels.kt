@@ -1,5 +1,7 @@
 package com.neozeon.kubedroid.data.model
 
+import com.neozeon.kubedroid.ui.status.PodStatus
+import com.neozeon.kubedroid.ui.status.StatusToken
 import java.util.UUID
 
 /**
@@ -27,6 +29,12 @@ data class ResourceSummary(
     val primary: String,
     val secondary: String?,
     val createdAt: String?,
+    /**
+     * Spec 12: semantic status token resolved once at extraction from the
+     * raw object (single source of truth for row pill + health bar).
+     * Unknown for kinds without a resolver path.
+     */
+    val statusToken: StatusToken = PodStatus.UNKNOWN,
 )
 
 /** One page of list results; [continueToken] == null means the end. */

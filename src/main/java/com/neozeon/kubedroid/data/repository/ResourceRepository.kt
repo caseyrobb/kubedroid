@@ -44,11 +44,15 @@ class ResourceRepository @Inject constructor(
         resource: String,
         namespace: String?,
         continueToken: String? = null,
+        labelSelector: String? = null,
     ): ResourceResult<ResourcePage> {
         val entry = resolver.resolve(connectionId, apiVersion, resource)
             ?: return ResourceResult.Err(ResourceError.Malformed("unknown resource type '$resource'"))
         val context = contextFor(connectionId) ?: return notFound(connectionId)
-        return when (val r = gateway.list(connectionId, context, entry, namespace, continueToken = continueToken)) {
+        return when (val r = gateway.list(
+            connectionId, context, entry, namespace,
+            continueToken = continueToken, labelSelector = labelSelector,
+        )) {
             is ResourceGateway.Result.Ok -> ResourceResult.Ok(entry.toPage(r.json))
             is ResourceGateway.Result.Http -> ResourceResult.Err(mapHttp(r.code, entry.kind, namespace))
             is ResourceGateway.Result.Network -> ResourceResult.Err(ResourceError.Network(r.detail))
@@ -183,6 +187,10 @@ class ResourceRepository @Inject constructor(
                 primary = status.primary,
                 secondary = status.secondary,
                 createdAt = meta.str("creationTimestamp"),
+                // spec 12: one semantic token per row, resolved from the raw
+                // object while it is still in hand (data -> ui.status import
+                // is a deliberate single-module decision, recorded in spec 12).
+                statusToken = com.neozeon.kubedroid.ui.status.resolveStatus(obj),
             )
         }
         val cont = (json["metadata"] as? Map<*, *>)?.get("continue") as? String

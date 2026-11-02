@@ -192,9 +192,30 @@ acceptance re-green.
    — makes the spec 03 stage 11 chip render an acceptance assertion and
    removes the async-probe race that starved the screenshot monitor.
    Re-green = full two-leg chain run (below).
-3. **Stage 3 — resource list**: status column as `StatusPill`, `HealthBar`
-   under the app bar for pod-like kinds, sort sheet, status filter chips
-   (client-side), label chips per Q3 decision.
+3. **Stage 3 — resource list**: DONE 2026-11-02. `resolveStatus(obj)`
+   kind-dispatcher runs at extraction and is carried on
+   `ResourceSummary.statusToken` (single source of truth; data→ui.status
+   import is a deliberate single-module decision). Trailing `StatusPill`
+   on pod-like rows (row `primary` string is suppressed when it equals
+   the token label so states never print twice); a `HealthBar` plus an
+   `All/Healthy/Pending/Failing` `FilterChip` row for `STATUS_KINDS`
+   kinds only (Q2; "Failing" chosen to stay text-unique from the row
+   pills for driver/test targeting); a sort `ModalBottomSheet`
+   (Name / Newest / Severity)
+   behind a top-bar action; label chips (Q3) are an `AssistChip` rail
+   that toggles AND-joined server-side `labelSelector` (new `?labelSelector=`
+   query param on the list URL). Pure logic in `ResourceFiltering.kt`
+   (sort/filter/bucket-count/topLabels) — unit-tested; VM tests cover
+   chip/sort state and selector propagation; gateway test pins the URL;
+   Robolectric test covers pills/health-bar/chips render + interaction.
+   Sort defaults to NAME (matches the API's name ordering). Acceptance
+   re-green required at this stage. Driver amendment (Q5 relax, same
+   commit): after the infinite-scroll swipe the new chip rail can leave
+   `web-1` out of the viewport — the driver now scrolls back toward the
+   list top (full-height swipe inside the list area, never over the
+   chips) before tapping it; the flow now also settles on the cluster
+   list for 4 s at the end so the screenshot sidecar gets a
+   deterministic clean window (probe state cached, no toast).
 4. **Stage 4 — detail + YAML sheet**: `YamlViewer` sheet, detail SUMMARY
    via `MetaGrid`, condition pills.
 5. **Stage 5 — logs parity**: wrap toggle (+ session persistence), relative

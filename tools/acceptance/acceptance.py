@@ -757,6 +757,14 @@ def run_app_flow(ca_b64):
          "" if web3 is not None else _dump_debug(ui_dump_tree()))
 
     # tap web-1 -> Summary shows status facts; YAML tab renders the doc
+    # spec 12 stage 3 driver amendment (Q5 relax, same commit as the spec
+    # note): the health-bar/chip rail consumes vertical space, so the
+    # infinite-scroll swipe above can leave web-1 scrolled out of the
+    # viewport — scroll back down (content toward the top) until it's back.
+    for _ in range(8):
+        if has_text("web-1", timeout=2):
+            break
+        adb("shell", "input", "swipe", "540", "900", "540", "1500", "150")
     _, web1 = wait_node(text="web-1")
     if web1 is not None:
         x, y = center(web1)
@@ -1315,6 +1323,17 @@ def run_app_flow(ca_b64):
     step("exec-nothing-persisted", log_count("GET /version") == baseline)
     ls = adb("shell", "run-as", PKG, "ls", "files/connections")
     step("exec-no-blob", "No such file" in ls.stderr or not ls.stdout.strip())
+
+    # spec 12 stage 3 driver amendment (Q5 relax): always settle on the
+    # cluster list for 4 s before exiting so the screenshot sidecar gets
+    # a deterministic clean window (probe state cached in the repository,
+    # toast long gone) independent of the toast/probe timing at import.
+    for _ in range(6):
+        if has_text("Add cluster", timeout=1):
+            break
+        adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+    time.sleep(4)
 
 
 def finish():
