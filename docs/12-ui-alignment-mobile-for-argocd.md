@@ -1,6 +1,6 @@
 ---
 description: Align kubedroid's UI language with argoproj-labs/mobile-for-argocd — semantic status tokens, status pills, a fleet health bar, monospace metadata grids, filter/sort chips, and sheet-based detail surfaces.
-status: proposed
+status: active
 ---
 
 # Spec 12 — UI alignment with mobile-for-argocd
@@ -133,21 +133,25 @@ None.
 
 1. **Theme**: adopt semantic hues only (proposed), or also offer an optional
    fixed "terminal dark" theme matching upstream? Recommendation: hues only.
+   hues only
 2. **Health bar placement**: browse-grid section badges need per-kind counts,
    which means one LIST call per kind at grid build — or defer counts until
    per-section lazy load. Alternative: bar only on pod-like list screens for
    v1. Recommendation: v1 = list screens only.
+   list screens only
 3. **Chip filtering scope**: client-side over loaded pages can mislead when
    pagination hasn't fetched everything (counts shown would be partial).
    Options: label chips apply server-side via `labelSelector` (correct,
    needs API param plumbing) vs client-side with a "filtered N of M loaded"
    hint. Recommendation: label chips server-side (`labelSelector`), status
    chips client-side (status is already fully loaded per page).
+   Go with the recommendation
 4. **Delete confirmation as sheet** — sheets can be dismissed by swipe,
    which is fine, but the destructive button must not sit where a swipe
    lands. Keep AlertDialog or sheet-with-no-dismiss-on-swipe?
    Recommendation: keep AlertDialog for delete (safer), sheet only for the
    YAML viewer + resource quick-peek.
+   Go with the recommendation
 5. **Driver-visible strings**: acceptance targets text/content-desc exactly.
    New strings may be added; existing driver targets ("No cluster connected",
    "Add cluster", "Workloads", "All namespaces", pod names, etc.) must not
@@ -155,6 +159,21 @@ None.
    in the same commit — which spec 08's "untouched acceptance.py" rule
    previously forbade. Confirm the rule relaxes to "driver amended only
    with spec amendment + re-green". Recommendation: yes, relax for this spec.
+
+## Decisions (human, 2026-10-29)
+
+- Q1: semantic hues only — no fixed "terminal dark" skin; M3 dynamic color
+and light/dark remain canonical.
+- Q2: health bar v1 on pod-like list screens only; browse-grid section
+counts deferred (avoid per-kind LIST fan-out).
+- Q3: as recommended — label chips server-side via `labelSelector`; status
+chips client-side over loaded pages.
+- Q4: as recommended — delete stays AlertDialog; sheets used for the YAML
+viewer and resource quick-peek only.
+- Q5: as recommended — the spec 08 "untouched acceptance.py" rule relaxes
+for this spec: the driver may be amended in the same commit as an
+unavoidable target rename, with a spec amendment note and a full
+acceptance re-green.
 
 ## Dev plan
 
