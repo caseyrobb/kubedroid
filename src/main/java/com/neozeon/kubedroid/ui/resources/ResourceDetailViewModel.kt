@@ -86,6 +86,14 @@ class ResourceDetailViewModel @Inject constructor(
         }
     }
 
+    /** Spec 12 stage 4: build the YAML document without leaving Summary. */
+    fun ensureYaml() {
+        _state.update { st ->
+            if (st.yaml == null && st.obj != null) st.copy(yaml = YamlRenderer.render(st.obj))
+            else st
+        }
+    }
+
     /** Secret plaintext on demand (spec 04 human decision 2026-10-25). */
     fun reveal() {
         val target = ref ?: return

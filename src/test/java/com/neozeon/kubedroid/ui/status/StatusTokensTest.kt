@@ -180,6 +180,33 @@ class StatusTokensTest {
         assertEquals(HealthBucket.UNKNOWN_GRAY, healthBucket(PodStatus.UNKNOWN))
     }
 
+    // ---- condition chips (spec 12 stage 4) --------------------------------
+
+    @Test fun conditionChipsMapTypeAndStatus() {
+        val obj = mapOf(
+            "status" to mapOf(
+                "conditions" to listOf(
+                    mapOf("type" to "Ready", "status" to "True"),
+                    mapOf("type" to "Degraded", "status" to "False"),
+                    mapOf("type" to "Available"),
+                    "garbage",
+                    mapOf("status" to "True"),
+                ),
+            ),
+        )
+        val chips = conditionChips(obj)
+        assertEquals(listOf("Ready", "Degraded", "Available"), chips.map { it.label })
+        // Color is a value class — compare by equality, not identity.
+        assertEquals(WorkloadStatus.READY.color, chips[0].color)
+        assertEquals(WorkloadStatus.NOT_READY.color, chips[1].color)
+        assertEquals(WorkloadStatus.UNKNOWN.color, chips[2].color)
+    }
+
+    @Test fun conditionChipsEmptyWhenNoConditions() {
+        assertEquals(emptyList<StatusToken>(), conditionChips(mapOf("status" to "junk")))
+        assertEquals(emptyList<StatusToken>(), conditionChips(emptyMap()))
+    }
+
     private fun mapOfNotNullValues(vararg pairs: Pair<String, Any?>): Map<String, Any?> =
         pairs.toList().filter { it.second != null }.toMap()
 }

@@ -1,9 +1,11 @@
 package com.neozeon.kubedroid.ui.resources
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -45,8 +48,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neozeon.kubedroid.data.kubernetes.ResourceCatalog
+import com.neozeon.kubedroid.ui.common.MetaGrid
+import com.neozeon.kubedroid.ui.common.RelativeTime
 import com.neozeon.kubedroid.ui.logs.LogNavPayloads
 import com.neozeon.kubedroid.data.model.ResourceRef
+import com.neozeon.kubedroid.ui.status.StatusPill
+import com.neozeon.kubedroid.ui.status.conditionChips
+import com.neozeon.kubedroid.ui.status.resolveStatus
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -75,6 +84,8 @@ fun ResourceDetailScreen(
     val clipboard = LocalClipboardManager.current
     // screen-level dirty-exit confirmation (spec 06 "Edit flow")
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+    // spec 12 goal 2 (Q4): YAML quick-peek bottom sheet, summary tab only.
+    var yamlSheetOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.deletedEvent) {
         if (state.deletedEvent > 0) onDeleted()
@@ -187,12 +198,18 @@ fun ResourceDetailScreen(
             TabRow(selectedTabIndex = state.tab, modifier = Modifier.testTag("detail-tabs")) {
                 Tab(
                     selected = state.tab == ResourceDetailViewModel.TAB_SUMMARY,
-                    onClick = { viewModel.selectTab(ResourceDetailViewModel.TAB_SUMMARY) },
+                    onClick = {
+                        yamlSheetOpen = false // sheet belongs to the summary view
+                        viewModel.selectTab(ResourceDetailViewModel.TAB_SUMMARY)
+                    },
                     text = { Text("Summary") },
                 )
                 Tab(
                     selected = state.tab == ResourceDetailViewModel.TAB_YAML,
-                    onClick = { viewModel.selectTab(ResourceDetailViewModel.TAB_YAML) },
+                    onClick = {
+                        yamlSheetOpen = false
+                        viewModel.selectTab(ResourceDetailViewModel.TAB_YAML)
+                    },
                     text = { Text("YAML") },
                 )
             }
@@ -293,6 +310,60 @@ fun ResourceDetailScreen(
                         .verticalScroll(rememberScrollState())
                         .testTag("summary-view"),
                 ) {
+                    // spec 12 goal 2/4: identity header — token pill,
+                    // condition chips, monospace metadata grid — above the
+                    // existing spec 04 key/value rows (which are unchanged:
+                    // the acceptance driver targets summary-* verbatim).
+                    state.obj?.let { obj ->
+                        val kindName = entry?.kind ?: resource
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            if (kindName in STATUS_KINDS) {
+                                StatusPill(resolveStatus(obj))
+                            }
+                            val chips = conditionChips(obj)
+                            if (chips.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(top = 8.dp)
+                                        .testTag("condition-chips"),
+                                ) {
+                                    chips.forEach { StatusPill(it) }
+                                }
+                            }
+                            val created = (obj["metadata"] as? Map<*, *>)?.get("creationTimestamp") as? String
+                            MetaGrid(
+                                rows = buildList {
+                                    add("kind" to kindName)
+                                    add("api" to apiVersion)
+                                    add(
+                                        "created" to (
+                                            created?.let { c ->
+                                                runCatching { Instant.parse(c) }.getOrNull()
+                                                    ?.let(RelativeTime::ago)
+                                            } ?: created ?: "—"
+                                            ),
+                                    )
+                                },
+                                columns = 3,
+                                modifier = Modifier
+                                    .padding(top = 10.dp)
+                                    .testTag("detail-metagrid"),
+                            )
+                            TextButton(
+                                onClick = {
+                                    viewModel.ensureYaml()
+                                    yamlSheetOpen = true
+                                },
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .testTag("yaml-sheet-open"),
+                            ) { Text("YAML sheet") }
+                        }
+                    }
+                    HorizontalDivider()
                     val rows = state.obj?.let { SummaryRows.build(it) }.orEmpty()
                     rows.forEach { (k, v) ->
                         Row(
@@ -327,6 +398,68 @@ fun ResourceDetailScreen(
                     onConfirm = { viewModel.performDelete() },
                     onDismiss = { viewModel.dismissDelete() },
                 )
+            }
+
+            // spec 12 goal 2 (Q4): YAML quick-peek bottom sheet with a
+            // line-number gutter (mobile-for-argocd details parity); the
+            // full-screen YAML tab remains the primary surface.
+            if (yamlSheetOpen) {
+                ModalBottomSheet(onDismissRequest = { yamlSheetOpen = false }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 24.dp)
+                            .testTag("yaml-sheet"),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "YAML",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            state.yaml?.let { y ->
+                                TextButton(
+                                    onClick = { clipboard.setText(AnnotatedString(y)) },
+                                    modifier = Modifier.testTag("copy-yaml-sheet"),
+                                ) { Text("Copy") }
+                            }
+                        }
+                        val yaml = state.yaml
+                        if (yaml == null) {
+                            Text("—", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            val lineCount = yaml.lineSequence().count()
+                            // single scroll container so gutter and body stay
+                            // in sync (and both remain in the semantics tree)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 420.dp)
+                                    .verticalScroll(rememberScrollState()),
+                            ) {
+                                Text(
+                                    (1..lineCount).joinToString("\n"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .padding(end = 8.dp)
+                                        .testTag("yaml-sheet-gutter"),
+                                )
+                                Text(
+                                    yaml,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // spec 06 "States": conflict never silently overwrites — reload or keep editing.

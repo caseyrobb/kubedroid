@@ -167,10 +167,20 @@ class CrdBrowsingTest {
         composeRule.waitUntil(timeoutMillis = 5_000) { vm.state.value.obj != null }
         composeRule.waitForIdle()
         // Q4: generic fallback — header facts + True condition types.
-        composeRule.onNodeWithTag("summary-kind").assertIsDisplayed()
-        composeRule.onNodeWithText("Widget").assertIsDisplayed()
-        composeRule.onNodeWithTag("summary-apiVersion").assertIsDisplayed()
-        composeRule.onNodeWithTag("summary-conditions").assertIsDisplayed()
+        // spec 12 stage 4: identity header (condition chips + MetaGrid)
+        // pushes these rows below the Robolectric fold — assert existence.
+        assertTrue(
+            composeRule.onAllNodesWithTag("summary-kind").fetchSemanticsNodes().isNotEmpty(),
+        )
+        assertTrue(
+            composeRule.onAllNodesWithText("Widget").fetchSemanticsNodes().isNotEmpty(),
+        )
+        assertTrue(
+            composeRule.onAllNodesWithTag("summary-apiVersion").fetchSemanticsNodes().isNotEmpty(),
+        )
+        assertTrue(
+            composeRule.onAllNodesWithTag("summary-conditions").fetchSemanticsNodes().isNotEmpty(),
+        )
         assertTrue(
             composeRule.onAllNodesWithText("Ready").fetchSemanticsNodes().isNotEmpty(),
         ) // conditions row + flattened status.conditions[0].type

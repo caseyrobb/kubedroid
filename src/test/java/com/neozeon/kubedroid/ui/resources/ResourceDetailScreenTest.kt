@@ -51,8 +51,14 @@ class ResourceDetailScreenTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("detail-title").assertIsDisplayed()
         composeRule.onNodeWithTag("summary-name").assertIsDisplayed()
-        composeRule.onNodeWithText("app=frontend").assertIsDisplayed() // labels row
-        composeRule.onNodeWithText("nginx").assertIsDisplayed()        // spec.containers[0].image
+        // spec 12 stage 4: the identity header pushes later rows below the
+        // fold in the Robolectric viewport — assert existence (spec 07 style).
+        assertTrue(
+            composeRule.onAllNodesWithText("app=frontend").fetchSemanticsNodes().isNotEmpty(),
+        ) // labels row
+        assertTrue(
+            composeRule.onAllNodesWithText("nginx").fetchSemanticsNodes().isNotEmpty(),
+        )        // spec.containers[0].image (below fold after stage 4 header)
         // spec 07 (Q4) added apiVersion/kind/conditions rows — podIP can
         // land below the fold in a scrollable summary; assert existence.
         assertTrue(
@@ -96,11 +102,17 @@ class ResourceDetailScreenTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("•••• (1 bytes)").assertIsDisplayed()
+        // spec 12 stage 4: below the fold after the identity header.
+        assertTrue(
+            composeRule.onAllNodesWithText("•••• (1 bytes)").fetchSemanticsNodes().isNotEmpty(),
+        )
         assertTrue(composeRule.onAllNodesWithText("eA==").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("reveal").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("eA==").assertIsDisplayed()
+        // spec 12 stage 4: revealed value sits below the fold.
+        assertTrue(
+            composeRule.onAllNodesWithText("eA==").fetchSemanticsNodes().isNotEmpty(),
+        )
     }
 
     @Test fun notFoundShowsErrorMessage() {

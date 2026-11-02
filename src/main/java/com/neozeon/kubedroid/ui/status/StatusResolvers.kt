@@ -124,6 +124,23 @@ fun resolveStatus(obj: Map<String, Any?>): StatusToken =
         else -> WorkloadStatus.UNKNOWN
     }
 
+/**
+ * `status.conditions[]` -> pills (spec 12 goal 2, detail SUMMARY): one
+ * pill per condition, label = condition type, True takes the token's
+ * good/red semantics. Total: malformed entries are skipped, empty list
+ * when there are none.
+ */
+fun conditionChips(obj: Map<String, Any?>): List<StatusToken> =
+    obj.child("status")?.list("conditions")?.mapNotNull { raw ->
+        val c = raw.asObj() ?: return@mapNotNull null
+        val type = c["type"] as? String ?: return@mapNotNull null
+        when (c["status"] as? String) {
+            "True" -> WorkloadStatus.READY.copy(label = type)
+            "False" -> WorkloadStatus.NOT_READY.copy(label = type)
+            else -> WorkloadStatus.UNKNOWN.copy(label = type)
+        }
+    }.orEmpty()
+
 /** Which fleet-health bucket a token counts toward (health bar, goal 3). */
 fun healthBucket(token: StatusToken): HealthBucket = when (token) {
     PodStatus.FAILED, PodStatus.CRASH_LOOP, PodStatus.IMAGE_PULL -> HealthBucket.FAILED_RED

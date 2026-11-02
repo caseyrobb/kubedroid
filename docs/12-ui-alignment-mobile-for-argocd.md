@@ -216,8 +216,23 @@ acceptance re-green.
    chips) before tapping it; the flow now also settles on the cluster
    list for 4 s at the end so the screenshot sidecar gets a
    deterministic clean window (probe state cached, no toast).
-4. **Stage 4 — detail + YAML sheet**: `YamlViewer` sheet, detail SUMMARY
-   via `MetaGrid`, condition pills.
+4. **Stage 4 — detail + YAML sheet**: DONE 2026-11-02. Detail SUMMARY
+   gains an identity header above the (untouched, driver-targeted)
+   spec 04 key/value rows: `StatusPill(resolveStatus(obj))` for
+   `STATUS_KINDS`, a horizontally-scrollable `conditionChips(obj)` pill
+   rail (`status.conditions[]` -> type-labelled good/red/gray tokens),
+   and a `MetaGrid` (KIND / API / CREATED via `RelativeTime`). A
+   "YAML sheet" `ModalBottomSheet` quick-peek (Q4: sheets for YAML
+   only) renders the document with a line-number gutter and Copy;
+   opening it from the summary tab, auto-dismissed on tab switch. The
+   YAML tab remains the primary surface the driver uses. The ViewModel
+   gained `ensureYaml()` so the sheet can render the document without
+   switching to the YAML tab. Pills are queried in tests via their
+   merged contentDescription (Compose hides child text nodes under
+   merged semantics). Pure `conditionChips` unit tests + Robolectric
+   tests for header, chips, and sheet gutter. Acceptance re-green
+   required (no driver change needed: all new labels avoid the
+   driver's exact-match targets).
 5. **Stage 5 — logs parity**: wrap toggle (+ session persistence), relative
    timestamps in header.
 6. **Stage 6 — polish**: browse grid readiness pills if Q2 allows, docs
