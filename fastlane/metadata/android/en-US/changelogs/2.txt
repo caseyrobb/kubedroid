@@ -1,10 +1,7 @@
 UI alignment with argoproj-labs/mobile-for-argocd (spec 12): semantic
-status tokens everywhere — status pills on cluster cards, resource rows,
-and detail headers; fleet health bar with bucket legend on pod-like lists;
-status/label filter chips and a sort sheet (name/newest/severity);
-condition chips and a KIND/API/CREATED metadata grid on the detail
-summary; YAML quick-peek bottom sheet with line-number gutter and Copy;
-pod log screen gains a newest-line relative age row, and Wrap (now off by
-default) and Timestamps choices persist for the app session. Monospace
-metadata grids with relative timestamps throughout. No new permissions,
-no telemetry, no new dependencies.
+status tokens — status pills on cluster cards, resource rows and detail
+headers; fleet health bar on pod-like lists; status/label filter chips
+and a sort sheet; condition chips and a metadata grid on the detail
+summary; YAML quick-peek sheet with line numbers and Copy; log screen
+relative age row, and Wrap (now off by default) plus Timestamps choices
+persist for the session. No new permissions or dependencies.
