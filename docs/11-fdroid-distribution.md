@@ -121,6 +121,19 @@ spec 10 stage 6 migration.
 3. **Stage 3 — reproducible builds**: wrapper pinning, nondeterminism hunt,
    local reprotest (A-B/B-B) in the F-Droid builder image; document exact
    reproduction command.
+   *Human decision (2026-11-02): docker is the container runtime on the
+   build host.* Implemented as `tools/fdroid/repro-docker.sh` (+
+   `repro-docker-impl.sh`): two clean signed `:assembleRelease` legs inside
+   `registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie` (the image
+   class F-Droid rebuilders use), building a fresh `git clone` of the
+   `Repo:` URL checked out at the release tag under a `kubedroid/` project
+   dir — clone dir name and `.git` presence are load-bearing (Kotlin module
+   metadata flows into dex layout; AGP `version-control-info.textproto`
+   reads `.git`). `KUBEDROID_REPRO_REF` selects the tag;
+   `KUBEDROID_REPRO_NEGATIVE=1` is the perturbation negative control.
+   Exact command:
+   `KUBEDROID_BUILD_HOST=<user@buildhost> KUBEDROID_KEYSTORE_PROPERTIES=<props path on host> KUBEDROID_KEYSTORE_FILE=<keystore path on host> KUBEDROID_REPRO_REF=vX.Y.Z bash tools/fdroid/repro-docker.sh`
+   (local-host twin: `tools/fdroid/repro-check.sh`).
    FINDING (2026-10-28): A-B builds on the build host matched on every zip
    entry (names, CRCs, timestamps) but differed in the APK Signing Block —
    AGP's `dependenciesInfo` SDKP pair (0x504b4453), a version-stamped,
