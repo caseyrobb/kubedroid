@@ -1,8 +1,7 @@
 name: CI
 
-# Guarded per spec 10 decision Q6: inert while the canonical repo lives on
-# self-hosted Gitea; activates unchanged when the repo moves to
-# github.com/caseyrobb/kubedroid.
+# Guarded per spec 10 decision Q6: only runs on the canonical GitHub repo,
+# so forks and mirrors never spend runner minutes.
 on:
   push:
     branches: [master]
@@ -22,6 +21,12 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          # Explicit packages only: the action's default list pulls the
+          # removed legacy `tools` package and fails on new runner images.
+          # Exact recipe matching the maintainer build host (spec 09/10).
+          packages: 'platforms;android-37.0 platforms;android-36 build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: 'false'
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests + lint + debug assemble
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
