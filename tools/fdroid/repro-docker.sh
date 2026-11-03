@@ -24,13 +24,27 @@ KS_FILE="${KUBEDROID_KEYSTORE_FILE:?KUBEDROID_KEYSTORE_FILE not set (keystore pa
 IMAGE="${KUBEDROID_REPRO_IMAGE:-registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie}"
 NEGATIVE="${KUBEDROID_REPRO_NEGATIVE:-0}"
 REPO="$(git rev-parse --show-toplevel)"
-
-git -C "$REPO" diff --quiet && git -C "$REPO" diff --cached --quiet \
-  || { echo "REPRO_CHECK_FAIL: dirty tree — commit first" >&2; exit 1; }
+# Optional: build a specific ref (the release tag) instead of the working
+# tree — F-Droid rebuilds from the tagged commit, so the gate should be
+# able to prove reproducibility of exactly that tree.
+REF="${KUBEDROID_REPRO_REF:-}"
+if [ -n "$REF" ]; then
+  git -C "$REPO" rev-parse -q --verify "$REF^{commit}" >/dev/null \
+    || { echo "REPRO_CHECK_FAIL: ref $REF not found" >&2; exit 1; }
+  STAGE="$REPO/.repro-stage"
+  rm -rf "$STAGE" && mkdir -p "$STAGE"
+  git -C "$REPO" archive "$REF" | tar -x -C "$STAGE"
+  SRC="$STAGE"
+else
+  git -C "$REPO" diff --quiet && git -C "$REPO" diff --cached --quiet \
+    || { echo "REPRO_CHECK_FAIL: dirty tree — commit first" >&2; exit 1; }
+  SRC="$REPO"
+fi
 
 rsync -a --delete --exclude .git --exclude build --exclude local.properties \
-  --exclude '.gradle*' "$REPO/" "$HOST:~/kubedroid-repro/"
+  --exclude '.gradle*' "$SRC/" "$HOST:~/kubedroid-repro/"
 scp -q "$REPO/tools/fdroid/repro-docker-impl.sh" "$HOST:~/kubedroid-repro/.repro-impl.sh"
+[ -z "${STAGE:-}" ] || rm -rf "$STAGE"
 
 # shellcheck disable=SC2029
 ssh "$HOST" \
