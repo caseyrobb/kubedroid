@@ -6,7 +6,8 @@
 #
 # Usage: capture-screenshots.sh [LOCAL_OUTDIR]
 set -euo pipefail
-HOST="${KUBEDROID_BUILD_HOST:?KUBEDROID_BUILD_HOST not set (see docs/MAINTAINERS.md)}"
+HOST="${KUBEDROID_BUILD_HOST:?KUBEDROID_BUILD_HOST not set (see docs/10-release-hosting-and-public-repo.md)}"
+BUILD_SCRIPT="${KUBEDROID_BUILD_SCRIPT:-~/kubedroid-build.sh}"  # gradle wrapper on the build host
 OUT="${1:-fastlane/metadata/android/en-US/images/phoneScreenshots}"
 
 REMOTE=/tmp/kubedroid-shots
@@ -15,7 +16,7 @@ REMOTE=/tmp/kubedroid-shots
 # chain would otherwise run against a stale APK from the last manual build.
 rsync -a --delete --exclude .git --exclude build --exclude local.properties \
   --exclude '.gradle*' ./ "$HOST:~/kubedroid/"
-ssh "$HOST" "bash -l ~/devbox-build.sh :assembleDebug" 2>&1 | tail -1
+ssh "$HOST" "bash -l $BUILD_SCRIPT :assembleDebug" 2>&1 | tail -1
 ssh "$HOST" "rm -rf $REMOTE && mkdir -p $REMOTE"
 
 # sidecar: capture while the chain runs the scripted flow

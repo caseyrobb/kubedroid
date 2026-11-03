@@ -9,8 +9,11 @@
 # Usage:  publish.sh vX.Y.Z [--dry-run]
 #
 # Required env (real run):  KUBEDROID_BUILD_HOST (ssh target),
-#                           KUBEDROID_GITEA_URL (https://host),
-#                           KUBEDROID_RELEASE_UPLOAD_TOKEN (never logged).
+#                           KUBEDROID_RELEASE_UPLOAD_TOKEN (never logged),
+#                           plus per backend:
+#                             gitea:  KUBEDROID_GITEA_URL (https://host)
+#                             github: KUBEDROID_REPO_SLUG=caseyrobb/kubedroid
+#                                     (API https://api.github.com)
 # --dry-run builds + verifies everything and prints the planned release
 # without touching git tags or the network (token not required).
 #
@@ -23,7 +26,7 @@ CERT_SHA256="8aa62040e78074602176340b3bb8c46c7ceab5b8c3a9d485a5ae45dd0593acd2"  
 OUT_DIR="${KUBEDROID_RELEASE_DIR:-$HOME/kubedroid-builds}"
 BUILD_TASKS=":assembleRelease"
 HYGIENE_PATTERN='devbox|GB10|redcomet\.ca|172\.16\.|neozeon\.ca|fenrir|gitea\.neozeon|wiki\.neozeon'
-HYGIENE_EXCLUDE='docs/MAINTAINERS.md|tools/release/'  # gate impl necessarily contains its own patterns
+HYGIENE_EXCLUDE='tools/release/'  # gate impl necessarily contains its own patterns
 
 die() { echo "PUBLISH_FAIL: $*" >&2; exit 1; }
 note() { echo "publish: $*"; }
@@ -72,7 +75,7 @@ SD_TEXT="$(head -1 "$SD")"
 note "fastlane/version gates ok (versionCode $VC)"
 
 # ---- build on the build host --------------------------------------------
-[[ -n "${KUBEDROID_BUILD_HOST:-}" ]] || die "KUBEDROID_BUILD_HOST not set (see docs/MAINTAINERS.md)"
+[[ -n "${KUBEDROID_BUILD_HOST:-}" ]] || die "KUBEDROID_BUILD_HOST not set (see docs/10-release-hosting-and-public-repo.md)"
 # Path (ON THE BUILD HOST) of the spec 09 signing properties; forwarded to
 # the build so assembleRelease signs. Without it the build is unsigned and
 # the signature gate below fails closed.
@@ -118,8 +121,8 @@ Verify before installing:
     apksigner verify --print-certs kubedroid-release-$VERSION.apk
 Signing certificate SHA-256: $CERT_SHA256
 
-Spec-driven changelog lives in docs/ (see docs/MAINTAINERS.md for the
-publishing flow).
+Spec-driven changelog lives in docs/ (see
+docs/10-release-hosting-and-public-repo.md for the publishing flow).
 EOF
 }
 
@@ -143,10 +146,39 @@ upload_gitea() {
 }
 
 upload_github() {
-  # Stub until the repo migrates to github.com/caseyrobb/kubedroid (spec 10
-  # decision Q1/Q2). Adapter shape mirrors upload_gitea; use gh or the
-  # releases API there.
-  die "github adapter not implemented yet — repo remains Gitea-canonical"
+  # GitHub Releases adapter (spec 10 stage 6). Token goes into a 0600 curl
+  # config file (curl -K), never argv or logs.
+  local api="https://api.github.com"
+  local cfg; cfg="$(mktemp)"; chmod 600 "$cfg"
+  printf 'header = "Authorization: Bearer ***"\n' "$KUBEDROID_RELEASE_UPLOAD_TOKEN" > "$cfg"
+  local resp id upload_url
+  resp="$(curl -sf -K "$cfg" -H 'Content-Type: application/json' \
+    -X POST "$api/repos/$REPO_SLUG/releases" \
+    -d "{\"tag_name\":\"$VERSION\",\"name\":\"kubedroid $VERSION\",\"body\":$(printf '%s' "$(release_body)" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))'),\"prerelease\":false,\"draft\":false}")" \
+    || { rm -f "$cfg"; die "release create failed"; }
+  id="$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')"
+  upload_url="$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["upload_url"].split("{")[0])')"
+  for f in "kubedroid-release-$VERSION.apk" "SHA256SUMS-$VERSION"; do
+    local ctype="application/octet-stream"
+    [[ "$f" == *.apk ]] && ctype="application/vnd.android.package-archive"
+    [[ "$f" == SHA256SUMS-* ]] && ctype="text/plain"
+    curl -sf -K "$cfg" -H "Content-Type: $ctype" -X POST \
+      "$upload_url?name=$f" \
+      --data-binary "@$OUT_DIR/$f" >/dev/null || { rm -f "$cfg"; die "asset upload failed: $f"; }
+  done
+  # Read-back verification: release + both assets visible with non-zero size.
+  curl -sf -K "$cfg" "$api/repos/$REPO_SLUG/releases/$id" \
+    | python3 -c '
+import json, sys
+rel = json.load(sys.stdin)
+want = {"kubedroid-release-'"$VERSION"'.apk", "SHA256SUMS-'"$VERSION"'"}
+have = {a["name"]: a["size"] for a in rel.get("assets", [])}
+missing = want - set(have)
+empty = {n for n, s in have.items() if n in want and s == 0}
+sys.exit(0 if not missing and not empty else 1)' \
+    || { rm -f "$cfg"; die "release read-back verification failed"; }
+  rm -f "$cfg"
+  note "github release $VERSION published + read back ok (id $id)"
 }
 
 BACKEND="${KUBEDROID_RELEASE_BACKEND:-gitea}"
@@ -160,7 +192,7 @@ if [[ "$MODE" == "--dry-run" ]]; then
 fi
 
 if [[ -z "${KUBEDROID_RELEASE_UPLOAD_TOKEN:-}" ]]; then die "token required (or use --dry-run)"; fi
-if [[ -z "${KUBEDROID_GITEA_URL:-}" ]]; then die "KUBEDROID_GITEA_URL required"; fi
+if [[ "$BACKEND" == "gitea" && -z "${KUBEDROID_GITEA_URL:-}" ]]; then die "KUBEDROID_GITEA_URL required for the gitea backend"; fi
 case "$BACKEND" in
   gitea)  upload_gitea ;;
   github) upload_github ;;

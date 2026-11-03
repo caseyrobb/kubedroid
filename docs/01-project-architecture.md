@@ -178,8 +178,9 @@ Navigation 3, Hilt, DataStore). The former QR import stack (CameraX +
 ML Kit + zxing `tools/qr-export`) was removed 2026-10-28 (spec 03
 stage 10) — the app holds no camera permission. Material icons are the
 **core set only** — extended icons do not resolve; use text buttons.
-Canonical build/test machine is the maintainer build host (see
-docs/MAINTAINERS.md); the maintainer workstation holds the git/file mirror.
+Canonical build/test machine is the maintainer build host (a Linux box
+with JDK 21 + Android SDK; see specs 09/10); the maintainer workstation
+holds the git/file mirror.
 
 ## **Testing**
 

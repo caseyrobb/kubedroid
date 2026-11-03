@@ -50,12 +50,12 @@ Survey already done (2026-10-28, HEAD `58608be`):
 
 ## Design sketch
 
-* **Hosting**: canonical release entry on the code host (Gitea release,
-  repo-scoped API), with a planned move of the entire repo to
-  `github.com/caseyrobb/kubedroid` as sole source of truth at the public
-  launch (human decision Q1/Q2). `publish.sh` is host-agnostic: a small
-  `upload()` function per backend — Gitea adapter implemented, GitHub
-  Releases adapter stubbed for the migration.
+* **Hosting**: canonical release entry on the code host. The repo moved
+  to `github.com/caseyrobb/kubedroid` as sole source of truth on
+  2026-11-02 (human decision, superseding the "~v1.0" timing in Q4); the
+  Gitea repo remains as an internal mirror. `publish.sh` is host-agnostic:
+  a small `upload()` function per backend — Gitea adapter and GitHub
+  Releases adapter both implemented; `KUBEDROID_RELEASE_BACKEND` selects.
 * **Integrity**: release body links `SHA256SUMS`; the README documents
   `sha256sum -c` + `apksigner verify --print-certs` with the pinned cert
   SHA-256 digest (`8aa62040e780...` from spec 09) so users can confirm the
@@ -110,6 +110,9 @@ Survey already done (2026-10-28, HEAD `58608be`):
 * **Q4 — First public version**: `v0.1.0` from current HEAD. The public
   GitHub launch will be around `v1.0` (or `v0.99`) — i.e. after the
   homelab-proven prerelease line.
+  *Amendment (human, 2026-11-02): migration executed early — GitHub
+  becomes sole source now so spec 11 (F-Droid) can proceed; the first
+  GitHub-published release is `v0.2.0` (versionCode 2).*
 * **Q5 — F-Droid**: yes, later — now scoped as spec 11
   (`docs/11-fdroid-distribution.md`, 2026-10-28). Note: the earlier claim
   "no proprietary deps" was wrong — `com.google.mlkit:barcode-scanning` is
@@ -137,11 +140,12 @@ Survey already done (2026-10-28, HEAD `58608be`):
    end-to-end verification from a clean machine (download, `sha256sum -c`,
    `apksigner verify`), acceptance criteria review, docs sync, wiki
    milestone.
-6. **GitHub migration checklist (deferred, per decisions Q1/Q2).** When
-   the public launch (~v1.0) moves the repo to
-   `github.com/caseyrobb/kubedroid` as sole source: the tree pushed there
-   MUST NOT contain `docs/MAINTAINERS.md` (it intentionally holds homelab
-   hostnames; keep it out of the public branch/fork), `publish.sh`
-   switches `KUBEDROID_RELEASE_BACKEND=github` once `upload_github()` is
-   implemented, and the guarded CI activates automatically via its
-   repository `if`.
+6. **GitHub migration** — DONE 2026-11-02 (human decision; early, per
+   spec 11 unblock). `docs/MAINTAINERS.md` was removed from the repo and
+   from full history (`git filter-branch --index-filter`, all 68 commits
+   + tags rewritten); maintainer content moved off-repo. All in-tree
+   references to it now point at the public specs. `upload_github()` is
+   implemented (GitHub Releases API, token via 0600 curl config, asset
+   read-back verification) and `KUBEDROID_RELEASE_BACKEND=github` is the
+   publish path. The guarded CI activates via its repository `if`.
+   `KUBEDROID_REPO_SLUG=caseyrobb/kubedroid` selects the GitHub target.

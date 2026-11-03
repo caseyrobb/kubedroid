@@ -68,7 +68,8 @@ on-device in the Android Keystore.
 Release builds sign themselves automatically when a `keystore.properties`
 is present in the project root (see `docs/09-release-signing.md`); without
 one they stay unsigned. Release artifacts are produced by the maintainer
-flow in `docs/MAINTAINERS.md`.
+flow on the maintainer build host (`docs/09-release-signing.md` +
+`docs/10-release-hosting-and-public-repo.md`).
 
 ## Privacy & security
 

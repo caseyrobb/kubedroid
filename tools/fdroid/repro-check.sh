@@ -8,7 +8,8 @@
 # Env: KUBEDROID_BUILD_HOST (user@host), KUBEDROID_KEYSTORE_PROPERTIES
 #      (absolute path ON THE BUILD HOST to the spec 09 properties file).
 set -euo pipefail
-HOST="${KUBEDROID_BUILD_HOST:?KUBEDROID_BUILD_HOST not set (see docs/MAINTAINERS.md)}"
+HOST="${KUBEDROID_BUILD_HOST:?KUBEDROID_BUILD_HOST not set (see docs/10-release-hosting-and-public-repo.md)}"
+BUILD_SCRIPT="${KUBEDROID_BUILD_SCRIPT:-~/kubedroid-build.sh}"  # gradle wrapper on the build host
 KS_PROPS="${KUBEDROID_KEYSTORE_PROPERTIES:?KUBEDROID_KEYSTORE_PROPERTIES not set (path on the build host)}"
 REPO="$(git rev-parse --show-toplevel)"
 
@@ -26,11 +27,11 @@ ssh "$HOST" "
   # Both legs start from a wiped build dir: an F-Droid rebuilder works from
   # a fresh clone, so an incremental A would not prove from-scratch builds.
   rm -rf build
-  bash -l ~/devbox-build.sh :assembleRelease >/tmp/reproA.log 2>&1 \
+  bash -l $BUILD_SCRIPT :assembleRelease >/tmp/reproA.log 2>&1 \
     || { tail -20 /tmp/reproA.log; exit 1; }
   cp build/outputs/apk/release/*.apk /tmp/repro-A.apk
   rm -rf build
-  bash -l ~/devbox-build.sh :assembleRelease >/tmp/reproB.log 2>&1 \
+  bash -l $BUILD_SCRIPT :assembleRelease >/tmp/reproB.log 2>&1 \
     || { tail -20 /tmp/reproB.log; exit 1; }
   cp build/outputs/apk/release/*.apk /tmp/repro-B.apk
   HA=\$(sha256sum /tmp/repro-A.apk | cut -d' ' -f1)
