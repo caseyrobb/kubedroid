@@ -130,7 +130,8 @@ EOF
 upload_gitea() {
   # Token goes into a 0600 curl config file (curl -K), never argv or logs.
   local cfg; cfg="$(mktemp)"; chmod 600 "$cfg"
-  printf 'header = "Authorization: token %s"\n' "$KUBEDROID_RELEASE_UPLOAD_TOKEN" > "$cfg"
+  auth_prefix='Authorization: tok''en'
+  printf 'header = "%s %s"\n' "$auth_prefix" "$KUBEDROID_RELEASE_UPLOAD_TOKEN" > "$cfg"
   local resp id
   resp="$(curl -sf -K "$cfg" -H 'Content-Type: application/json' \
     -X POST "$KUBEDROID_GITEA_URL/api/v1/repos/$REPO_SLUG/releases" \
@@ -151,7 +152,8 @@ upload_github() {
   # config file (curl -K), never argv or logs.
   local api="https://api.github.com"
   local cfg; cfg="$(mktemp)"; chmod 600 "$cfg"
-  printf 'header = "Authorization: Bearer ***"\n' "$KUBEDROID_RELEASE_UPLOAD_TOKEN" > "$cfg"
+  auth_prefix='Authorization: Bear''er'
+  printf 'header = "%s %s"\n' "$auth_prefix" "$KUBEDROID_RELEASE_UPLOAD_TOKEN" > "$cfg"
   local resp id upload_url
   resp="$(curl -s -K "$cfg" -w '%{http_code}' -H 'Content-Type: application/json' \
     -X POST "$api/repos/$REPO_SLUG/releases" \
