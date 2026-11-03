@@ -235,11 +235,41 @@ class StatusTokensTest {
             ),
         )
         assertSame(WorkloadStatus.READY, resolveStatus(idle, "CronJob"))
-        // Never synced by the controller: no conditions at all -> Unknown.
+        // Never synced by the controller: no conditions, no timestamps ->
+        // Unknown.
         assertSame(
             WorkloadStatus.UNKNOWN,
             resolveStatus(mapOf("spec" to mapOf("schedule" to "@daily")), "CronJob"),
         )
+    }
+
+    @Test fun cronJobReadyWithRealStatusNoConditions() {
+        // chaos `set-es-replicas` raw LIST capture 2026-11-03: the batch/v1
+        // controller leaves conditions EMPTY by default (CronJobStatusConditions
+        // gate OFF) — healthy status is just the two timestamps. Requiring
+        // conditions here rendered every real CronJob Unknown in the field.
+        val live = mapOf(
+            "metadata" to mapOf("name" to "set-es-replicas"),
+            "spec" to mapOf("schedule" to "0 23 * * *", "suspend" to false),
+            "status" to mapOf(
+                "lastScheduleTime" to "2026-11-03T23:00:00Z",
+                "lastSuccessfulTime" to "2026-11-03T23:00:10Z",
+            ),
+        )
+        assertSame(WorkloadStatus.READY, resolveStatus(live, "CronJob"))
+    }
+
+    @Test fun cronJobProgressingWhenActiveJobsListed() {
+        // In-flight schedule = non-empty status.active ARRAY (there is no
+        // Active condition by default).
+        val inflight = mapOf(
+            "spec" to mapOf("schedule" to "@hourly", "suspend" to false),
+            "status" to mapOf(
+                "active" to listOf(mapOf("name" to "set-es-replicas-2lq4k")),
+                "lastScheduleTime" to "2026-11-03T23:00:00Z",
+            ),
+        )
+        assertSame(WorkloadStatus.PROGRESSING, resolveStatus(inflight, "CronJob"))
     }
 
     // ---- health bucketing --------------------------------------------------

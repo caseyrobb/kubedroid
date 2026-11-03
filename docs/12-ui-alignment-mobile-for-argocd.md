@@ -293,8 +293,15 @@ acceptance re-green.
   condition arm bailed to Unknown when a real Deployment's conditions are
   `Available=True + Progressing=True/<terminal reason>` with NO `Ready`
   condition — it now falls through to the `Available`/replica checks, and
-  CronJob derives Active=True -> Progressing, synced-idle -> Ready, no
-  status -> Unknown. New `StatusTokensTest` cases mirror the live LIST
+  CronJob derives status from the real batch/v1 shape -- the controller
+  leaves `status.conditions` EMPTY by default (CronJobStatusConditions
+  gate OFF), so a healthy CronJob is timestamps-only
+  (`lastScheduleTime`/`lastSuccessfulTime`) -> Ready, an in-flight
+  schedule is a non-empty `status.active` ARRAY (not an Active
+  condition) -> Progressing, `spec.suspend` -> Suspended, no status yet
+  -> Unknown; an initial conditions-based derivation rendered every real
+  CronJob Unknown in the field (regression #2, same day) and is now only
+  a fallback for gate-enabled clusters. New `StatusTokensTest` cases mirror the live LIST
   shapes captured via raw wire JSON. Acceptance: stub gained faithful
   `/apis/batch/v1/jobs` + `/apis/batch/v1/cronjobs` routes and a live-shape
   Deployment; driver steps `spec12-workload-deployments`,

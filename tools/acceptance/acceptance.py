@@ -1239,7 +1239,8 @@ def run_app_flow(ca_b64):
                         "spec12-workload-deployments")
     open_kind_and_check("Jobs", ["backup"], ["Ready"],
                         "spec12-workload-jobs")
-    open_kind_and_check("CronJobs", ["nightly", "hold"], ["Ready", "Suspended"],
+    open_kind_and_check("CronJobs", ["nightly", "flight", "hold"],
+                        ["Ready", "Progressing", "Suspended"],
                         "spec12-workload-cronjobs")
     grid_scroll_to("Secrets", up=False)
 

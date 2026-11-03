@@ -107,14 +107,23 @@ fun resolveWorkload(obj: Map<String, Any?>, fallbackKind: String? = null): Statu
     val desired = spec?.int("replicas")
         ?: status?.int("desiredNumberScheduled") // DaemonSet
         ?: return if (kind == "CronJob") {
-            // CronJob has no replica semantics: derive from its own
-            // conditions — Active=True means a Job is currently running;
-            // any (Suspended=False etc.) condition set with the cron
-            // controller synced means scheduled/idle.
+            // CronJob has no replica semantics. The batch/v1 controller
+            // leaves status.conditions EMPTY unless the
+            // CronJobStatusConditions gate is on (default OFF): a healthy
+            // CronJob's status is just lastScheduleTime/lastSuccessfulTime,
+            // and an in-flight schedule shows a non-empty status.active
+            // array (not an Active condition). Anything else (brand-new
+            // CronJob with no status) stays Unknown. (2026-11-03 field
+            // regression #2: requiring conditions made every real CronJob
+            // render Unknown.)
             when {
+                status?.list("active")?.isNotEmpty() == true ->
+                    WorkloadStatus.PROGRESSING
                 conditions.any { it["type"] == "Active" && it["status"] == "True" } ->
                     WorkloadStatus.PROGRESSING
-                conditions.isNotEmpty() -> WorkloadStatus.READY
+                status?.containsKey("lastScheduleTime") == true ||
+                    status?.containsKey("lastSuccessfulTime") == true ||
+                    conditions.isNotEmpty() -> WorkloadStatus.READY
                 else -> WorkloadStatus.UNKNOWN
             }
         } else {

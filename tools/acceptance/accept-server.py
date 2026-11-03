@@ -406,9 +406,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 '"spec":{"parallelism":1,"completions":1},"status":{"succeeded":1}}',
             ])
         if base == "/apis/batch/v1/cronjobs":
+            # Live shapes (chaos 2026-11-03): batch/v1 leaves conditions
+            # EMPTY by default; healthy == timestamps only, in-flight ==
+            # non-empty status.active ARRAY, suspended == spec.suspend.
             return 200, self._pods([
                 '{"metadata":{"name":"nightly","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
-                '"spec":{"schedule":"@daily"},"status":{"conditions":[{"type":"Suspended","status":"False"}]}}',
+                '"spec":{"schedule":"@daily","suspend":false},"status":{"lastScheduleTime":"2026-11-03T23:00:00Z","lastSuccessfulTime":"2026-11-03T23:00:10Z"}}',
+                '{"metadata":{"name":"flight","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
+                '"spec":{"schedule":"@hourly","suspend":false},"status":{"active":[{"name":"flight-2lq4k","uid":"a1"}],"lastScheduleTime":"2026-11-03T23:00:00Z"}}',
                 '{"metadata":{"name":"hold","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
                 '"spec":{"schedule":"@hourly","suspend":true},"status":{}}',
             ])
