@@ -153,10 +153,15 @@ upload_github() {
   local cfg; cfg="$(mktemp)"; chmod 600 "$cfg"
   printf 'header = "Authorization: Bearer ***"\n' "$KUBEDROID_RELEASE_UPLOAD_TOKEN" > "$cfg"
   local resp id upload_url
-  resp="$(curl -sf -K "$cfg" -H 'Content-Type: application/json' \
+  resp="$(curl -s -K "$cfg" -w '%{http_code}' -H 'Content-Type: application/json' \
     -X POST "$api/repos/$REPO_SLUG/releases" \
     -d "{\"tag_name\":\"$VERSION\",\"name\":\"kubedroid $VERSION\",\"body\":$(printf '%s' "$(release_body)" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))'),\"prerelease\":false,\"draft\":false}")" \
-    || { rm -f "$cfg"; die "release create failed"; }
+    || { rm -f "$cfg"; die "release create: curl transport error"; }
+  if [[ "${resp: -3}" != "201" ]]; then
+    rm -f "$cfg"
+    die "release create failed (HTTP ${resp: -3}): ${resp:0:300}"
+  fi
+  resp="${resp:0:${#resp}-3}"
   id="$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')"
   upload_url="$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin)["upload_url"].split("{")[0])')"
   for f in "kubedroid-release-$VERSION.apk" "SHA256SUMS-$VERSION"; do
