@@ -1,0 +1,1 @@
+Fix: workload and pod list rows now show their true status pills (Running, Ready, x/y ready) instead of Unknown. The kube-apiserver omits the object kind on list responses; status now resolves through the catalog entry's kind. Detail views, filters, sorting and the fleet health bar reflect the corrected statuses.
