@@ -87,8 +87,9 @@ fi
 LOCAL_ROOT="$(pwd)"
 rsync -a --exclude .git --exclude build "$LOCAL_ROOT/" "$KUBEDROID_BUILD_HOST:~/kubedroid/"
 note "tree synced to build host"
+BUILD_SCRIPT="${KUBEDROID_BUILD_SCRIPT:-~/kubedroid-build.sh}"  # gradle wrapper on the build host
 ssh "$KUBEDROID_BUILD_HOST" \
-  "cd ~/kubedroid && $SIGN_ENV bash -l ~/devbox-build.sh $BUILD_TASKS 2>&1 | tail -2 && ls build/outputs/apk/release/" \
+  "cd ~/kubedroid && $SIGN_ENV bash -l $BUILD_SCRIPT $BUILD_TASKS 2>&1 | tail -2 && ls build/outputs/apk/release/" \
   | tee /tmp/kubedroid-publish-build.log
 grep -q "BUILD_EXIT=0" /tmp/kubedroid-publish-build.log || die "release build failed on build host"
 
