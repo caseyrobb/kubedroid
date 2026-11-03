@@ -13,6 +13,7 @@ import com.neozeon.kubedroid.data.model.RedactedValue
 import com.neozeon.kubedroid.data.model.ResourceError
 import com.neozeon.kubedroid.data.model.ResourceRef
 import com.neozeon.kubedroid.data.model.ResourceResult
+import com.neozeon.kubedroid.ui.status.PodStatus
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -112,6 +113,10 @@ class ResourceRepositoryTest {
         assertEquals(mapOf("app" to "web"), web.labels)
         assertEquals("Running", web.primary)
         assertEquals("2/2 ready · w1", web.secondary)
+        // list items carry NO `kind` (as the real apiserver sends them) —
+        // the token must still resolve via the catalog entry's kind.
+        assertEquals(PodStatus.RUNNING, web.statusToken)
+        assertEquals(PodStatus.PENDING, page.items[1].statusToken)
         assertEquals("2026-10-01T00:00:00Z", web.createdAt)
         assertEquals(0, page.items[1].labels.size)
         assertEquals(true, gw.seenPaths.single().contains("limit=500"))

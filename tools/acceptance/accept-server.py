@@ -37,7 +37,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
     @staticmethod
     def _pods(items, cont=None):
         meta = '{"continue": "%s"}' % cont if cont else "{}"
-        return ('{"items":[%s],"metadata":%s}' % (",".join(items), meta)).encode()
+        # Emulate the real apiserver faithfully: LIST items omit `kind`
+        # and `apiVersion` (only the envelope carries the collection kind).
+        # The app once shipped a list-status bug that stubs WITH kind hid —
+        # do not "fix" this back (spec 12 follow-up, 2026-11-02).
+        stripped = []
+        for raw in items:
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                stripped.append(raw)
+                continue
+            if isinstance(obj, dict):
+                obj.pop("kind", None)
+                obj.pop("apiVersion", None)
+                stripped.append(json.dumps(obj))
+            else:
+                stripped.append(raw)
+        return ('{"items":[%s],"metadata":%s}' % (",".join(stripped), meta)).encode()
 
     @staticmethod
     def _pod(name, phase="Running", ip="10.42.0.7"):

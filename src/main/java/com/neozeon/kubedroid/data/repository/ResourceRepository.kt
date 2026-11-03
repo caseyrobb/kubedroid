@@ -190,7 +190,7 @@ class ResourceRepository @Inject constructor(
                 // spec 12: one semantic token per row, resolved from the raw
                 // object while it is still in hand (data -> ui.status import
                 // is a deliberate single-module decision, recorded in spec 12).
-                statusToken = com.neozeon.kubedroid.ui.status.resolveStatus(obj),
+                statusToken = com.neozeon.kubedroid.ui.status.resolveStatus(obj, kind),
             )
         }
         val cont = (json["metadata"] as? Map<*, *>)?.get("continue") as? String

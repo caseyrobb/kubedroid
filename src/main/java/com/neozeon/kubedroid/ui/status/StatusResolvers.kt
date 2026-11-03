@@ -116,9 +116,17 @@ private val WORKLOAD_KINDS = setOf(
 /**
  * Kind dispatcher for list rows (spec 12 stage 3): pods take the phase
  * path, known workloads the readiness path, everything else Unknown.
+ *
+ * `fallbackKind` exists because the apiserver **omits `kind` on list
+ * items** (their `apiVersion` is frequently empty too) — only the list
+ * envelope carries the collection's kind, which the caller knows from its
+ * [com.neozeon.kubedroid.data.kubernetes.CatalogEntry]. A single GET of the
+ * item does carry `kind`, which is why the detail screen resolved status
+ * correctly while every list row read Unknown. Detail callers leave
+ * [fallbackKind] null; list callers must pass the catalog kind.
  */
-fun resolveStatus(obj: Map<String, Any?>): StatusToken =
-    when (obj["kind"] as? String) {
+fun resolveStatus(obj: Map<String, Any?>, fallbackKind: String? = null): StatusToken =
+    when (val kind = (obj["kind"] as? String)?.takeIf { it.isNotEmpty() } ?: fallbackKind) {
         "Pod" -> resolvePod(obj)
         in WORKLOAD_KINDS -> resolveWorkload(obj)
         else -> WorkloadStatus.UNKNOWN

@@ -207,6 +207,42 @@ class StatusTokensTest {
         assertEquals(emptyList<StatusToken>(), conditionChips(emptyMap()))
     }
 
+    // ---- kind dispatcher (list rows: apiserver omits kind on items) ------
+
+    /** A list-shaped pod: no `kind`, no `apiVersion` — as the apiserver sends it. */
+    private val kindlessPod = mapOf(
+        "apiVersion" to "v1",
+        "metadata" to mapOf("name" to "web-1"),
+        "status" to mapOf("phase" to "Running"),
+    )
+
+    @Test fun resolveStatusUsesFallbackKindWhenItemOmitsKind() {
+        // Real regression: LIST items carry no `kind`, so every row read
+        // Unknown until the catalog entry's kind was threaded through.
+        assertSame(PodStatus.RUNNING, resolveStatus(kindlessPod, "Pod"))
+        assertSame(WorkloadStatus.UNKNOWN, resolveStatus(kindlessPod))
+    }
+
+    @Test fun resolveStatusTreatsEmptyKindAsMissing() {
+        val obj = kindlessPod + ("kind" to "")
+        assertSame(PodStatus.RUNNING, resolveStatus(obj, "Pod"))
+    }
+
+    @Test fun resolveStatusItemKindWinsOverFallback() {
+        val explicit = kindlessPod + ("kind" to "Pod")
+        assertSame(PodStatus.RUNNING, resolveStatus(explicit, "Deployment"))
+    }
+
+    @Test fun resolveStatusWorkloadViaFallback() {
+        val obj = mapOf(
+            "metadata" to mapOf("name" to "web"),
+            "spec" to mapOf("replicas" to 2.0),
+            "status" to mapOf("readyReplicas" to 2.0),
+        )
+        assertSame(WorkloadStatus.READY, resolveStatus(obj, "Deployment"))
+        assertSame(WorkloadStatus.UNKNOWN, resolveStatus(obj, "Widget"))
+    }
+
     private fun mapOfNotNullValues(vararg pairs: Pair<String, Any?>): Map<String, Any?> =
         pairs.toList().filter { it.second != null }.toMap()
 }

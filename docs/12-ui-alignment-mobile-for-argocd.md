@@ -254,6 +254,19 @@ acceptance re-green.
    session-persistent log toggles. Screenshots regenerated with the
    final build (both acceptance legs green, 5/5 captured).
 
+7. **Stage 7 — list-status regression fix** (human-reported, 2026-11-02):
+   workload list rows all rendered the Unknown pill while the detail screen
+   was correct. Root cause: `resolveStatus` dispatched on `obj["kind"]`,
+   but the kube-apiserver omits `kind` (and usually `apiVersion`) on LIST
+   items — only the single GET carries them. The unit fixture and the
+   acceptance stub both included `kind` on items, so neither layer caught
+   the divergence from a real cluster. Fix: `resolveStatus(obj,
+   fallbackKind)` takes the catalog entry's kind at the single list mapping
+   point (`ResourceRepository.toPage`); the acceptance stub's list envelope
+   now strips `kind`/`apiVersion` from items to emulate the apiserver
+   faithfully; new resolver tests cover kindless items, empty-string kind,
+   item-kind-over-fallback precedence, and non-catalog fallback kinds.
+
 ## Testing
 
 - Stage 1: exhaustive JVM tests — every token table key resolves, severity
@@ -267,7 +280,13 @@ acceptance re-green.
 - Existing suites: full unit suite green; lint + assembleDebug green per
   stage; acceptance chain re-greened at stages 2–6 (driver untouched unless
   Q5 relax is invoked); `tools/fdroid/capture-screenshots.sh` re-run with
-  vision verification at stage 6.
+  vision  verification at stage 6.
+- Stage 7: `StatusTokensTest` kind-dispatch cases (fallback used when the
+  item omits `kind`, empty-string treated as missing, explicit item kind
+  wins over fallback, unknown fallback kind stays Unknown) plus a
+  repository-level assertion that list rows from a kind-less list payload
+  carry resolved status tokens; acceptance stub now serves list items
+  WITHOUT `kind`/`apiVersion` so the chain exercises the real shape.
 
 ## Acceptance criteria
 
