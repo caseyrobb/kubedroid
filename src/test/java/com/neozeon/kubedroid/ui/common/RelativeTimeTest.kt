@@ -1,6 +1,7 @@
 package com.neozeon.kubedroid.ui.common
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.Instant
 
@@ -38,5 +39,25 @@ class RelativeTimeTest {
 
     @Test fun nullTimestampIsEmDash() {
         assertEquals("—", RelativeTime.ago(null, now))
+    }
+
+    @Test fun parseAcceptsWholeSecondRfc3339() {
+        assertEquals(
+            Instant.parse("2026-10-25T12:00:00Z"),
+            RelativeTime.parse("2026-10-25T12:00:00Z"),
+        )
+    }
+
+    @Test fun parseTruncatesFractionalSeconds() {
+        assertEquals(
+            Instant.parse("2026-10-25T12:00:00Z"),
+            RelativeTime.parse("2026-10-25T12:00:00.123456789Z"),
+        )
+    }
+
+    @Test fun parseRejectsGarbageAndBlank() {
+        assertNull(RelativeTime.parse("not-a-time"))
+        assertNull(RelativeTime.parse("   "))
+        assertNull(RelativeTime.parse(null))
     }
 }

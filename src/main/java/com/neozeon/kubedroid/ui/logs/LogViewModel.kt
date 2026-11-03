@@ -91,7 +91,9 @@ class LogViewModel @Inject constructor(
         val follow: Boolean = false,
         val showTimestamps: Boolean = false,
         val previous: Boolean = false,
-        val wrap: Boolean = true,
+        // spec 12 goal 7: wrap defaults off; both toggles persist per
+        // session via LogDisplaySession (seeded in open()).
+        val wrap: Boolean = false,
         val containers: List<String> = emptyList(),
         val selectedContainer: String? = null,
         val autoScroll: Boolean = true,
@@ -123,6 +125,8 @@ class LogViewModel @Inject constructor(
         knownContainers: Pair<List<String>, List<String>>? = null,
     ) {
         if (_state.value.params == params && _state.value.containers.isNotEmpty()) return
+        // spec 12 goal 7: inherit last session's display toggles.
+        _state.update { it.copy(wrap = LogDisplaySession.wrap, showTimestamps = LogDisplaySession.timestamps) }
         if (knownContainers != null) {
             startWith(params, initialContainer, knownContainers.first, knownContainers.second)
         } else {
@@ -189,11 +193,17 @@ class LogViewModel @Inject constructor(
         startStream()
     }
 
-    /** Display-only: never touches the network (spec 05). */
-    fun toggleTimestamps() = _state.update { it.copy(showTimestamps = !it.showTimestamps) }
+    /** Display-only: never touches the network (spec 05); session-persisted (spec 12). */
+    fun toggleTimestamps() = _state.update {
+        it.copy(showTimestamps = !it.showTimestamps).also { s ->
+            LogDisplaySession.timestamps = s.showTimestamps
+        }
+    }
 
-    /** Display-only: never touches the network (spec 05). */
-    fun toggleWrap() = _state.update { it.copy(wrap = !it.wrap) }
+    /** Display-only: never touches the network (spec 05); session-persisted (spec 12). */
+    fun toggleWrap() = _state.update {
+        it.copy(wrap = !it.wrap).also { s -> LogDisplaySession.wrap = s.wrap }
+    }
 
     fun onFilter(filter: String) = _state.update { it.copy(filter = filter) }
 

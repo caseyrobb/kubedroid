@@ -50,9 +50,13 @@ class LogScreenTest {
     @Before fun setUp() {
         harness = LogTestHarness(File(tmp.root, "harness"))
         LogNavPayloads.clear()
+        LogDisplaySession.reset() // spec 12: toggles are process-statics
     }
 
-    @After fun tearDown() = LogNavPayloads.clear()
+    @After fun tearDown() {
+        LogNavPayloads.clear()
+        LogDisplaySession.reset()
+    }
 
     private fun show(
         container: String? = null,
@@ -105,6 +109,47 @@ class LogScreenTest {
         composeRule.onNodeWithText("2026-10-25T12:00:00Z hello").assertIsDisplayed()
         // Display-only: still exactly one stream request (spec 05).
         assertEquals(1, harness.streamRequests.size)
+    }
+
+    @Test fun headerShowsRelativeAgeOfLastLine() {
+        show()
+        val ts = java.time.format.DateTimeFormatter.ISO_INSTANT.format(
+            java.time.Instant.now().minusSeconds(120),
+        )
+        harness.emitLineLast("hello", ts = ts)
+        composeRule.waitForIdle()
+        // spec 12 goal 8: relative age under the title (2 minutes pinned).
+        assertTrue(
+            composeRule.onAllNodesWithTag("log-age").fetchSemanticsNodes().isNotEmpty(),
+        )
+        assertTrue(
+            composeRule.onAllNodesWithText("last line 2m ago").fetchSemanticsNodes().isNotEmpty(),
+        )
+    }
+
+    @Test fun headerOmitsAgeWhenNoTimestamps() {
+        show()
+        harness.emitLineLast("hello")
+        composeRule.waitForIdle()
+        assertTrue(
+            composeRule.onAllNodesWithTag("log-age").fetchSemanticsNodes().isEmpty(),
+        )
+    }
+
+    @Test fun wrapTogglePersistsAcrossScreensInSession() {
+        show()
+        composeRule.onNodeWithTag("wrap-toggle").performClick() // off -> on
+        composeRule.waitForIdle()
+        // A fresh screen's ViewModel (same session) re-seeds from the
+        // process-static session state.
+        assertTrue(LogDisplaySession.wrap)
+        val vm2 = harness.viewModel()
+        vm2.open(
+            LogViewModel.Params(harness.connectionId, "web", "web-1"),
+            initialContainer = null,
+            knownContainers = listOf("app") to emptyList(),
+        )
+        assertTrue(vm2.state.value.wrap)
     }
 
     @Test fun filterNarrowsRows() {

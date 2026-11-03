@@ -14,6 +14,21 @@ object RelativeTime {
     private val ISO_UTC = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
         .withZone(ZoneOffset.UTC)
 
+    /**
+     * Loose RFC3339 parse for server log timestamps: tolerates fractional
+     * seconds ("...:33.123456789Z") by truncating to whole seconds; null on
+     * anything unparseable (renderers then show the raw string).
+     */
+    fun parse(instantText: String?): Instant? {
+        val s = instantText?.trimOrNull() ?: return null
+        val normalized = if (REGEX_FRACTION.matches(s)) s.substringBefore('.') + "Z" else s
+        return runCatching { Instant.parse(normalized) }.getOrNull()
+    }
+
+    private fun String.trimOrNull(): String? = trim().takeIf { it.isNotEmpty() }
+
+    private val REGEX_FRACTION = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z$")
+
     fun ago(timestamp: Instant?, now: Instant = Instant.now()): String {
         if (timestamp == null) return "—"
         val delta = Duration.between(timestamp, now)

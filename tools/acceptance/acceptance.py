@@ -826,6 +826,13 @@ def run_app_flow(ca_b64):
          f"(follow_reqs={len(follow_req)})" if got_follow
          else _dump_debug(ui_dump_tree()))
 
+    # spec 12 stage 5 (Q5 amendment): Wrap/TS toggles now persist for the
+    # app session, so reset TS to the hidden default here — the container /
+    # drop / 403 screens opened later assert exact (unprefixed) row text.
+    root = ui_dump_tree()
+    tap_where(root, text="TS")
+    time.sleep(1)
+
     # Save: SAF picker opens; cancel leaves no file request (no tailLines)
     root = ui_dump_tree()
     tap_where(root, text="Save")

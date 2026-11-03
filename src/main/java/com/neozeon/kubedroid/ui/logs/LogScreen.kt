@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neozeon.kubedroid.data.kubernetes.LogLine
+import com.neozeon.kubedroid.ui.common.RelativeTime
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -205,6 +206,21 @@ fun LogScreen(
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
             )
+            // spec 12 goal 8: relative age of the newest line (in the
+            // content column — the TopAppBar title area is too cramped
+            // beside five actions). A stalled follow stream is visible
+            // at a glance.
+            val age = RelativeTime.ago(RelativeTime.parse(ui.lines.lastOrNull()?.timestamp))
+            if (age != "—") {
+                Text(
+                    "last line $age",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .testTag("log-age"),
+                )
+            }
             if (ui.evicted > 0) {
                 Text(
                     "showing last ${LogBuffer.CAP} of ${ui.seen} lines",

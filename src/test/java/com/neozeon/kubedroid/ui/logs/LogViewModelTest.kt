@@ -30,6 +30,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -42,6 +43,8 @@ import org.junit.rules.TemporaryFolder
  * state machine.
  */
 class LogViewModelTest {
+
+    @Before fun resetSession() = LogDisplaySession.reset()
 
     @get:Rule
     val tmp = TemporaryFolder()
@@ -283,5 +286,31 @@ class LogViewModelTest {
         assertEquals(ResourceError.Network(), vm.state.value.saveError)
         assertNull(vm.state.value.saveMessage)
         assertFalse(vm.state.value.saving)
+    }
+
+    @Test fun wrapDefaultsOffAndTogglesPersistAcrossViewModels() {
+        val (repo, id) = fixture()
+        LogDisplaySession.reset()
+        val vm1 = vm(repo)
+        vm1.open(params(id), initialContainer = null, knownContainers = listOf("app") to emptyList())
+        assertFalse(vm1.state.value.wrap) // spec 12 goal 7: default off
+        assertFalse(vm1.state.value.showTimestamps)
+
+        vm1.toggleWrap()
+        vm1.toggleTimestamps()
+        assertTrue(vm1.state.value.wrap)
+
+        // New screen (fresh VM) in the same session inherits the toggles.
+        val vm2 = vm(repo)
+        vm2.open(params(id), initialContainer = null, knownContainers = listOf("app") to emptyList())
+        assertTrue(vm2.state.value.wrap)
+        assertTrue(vm2.state.value.showTimestamps)
+
+        // Session reset (process restart) returns to defaults.
+        LogDisplaySession.reset()
+        val vm3 = vm(repo)
+        vm3.open(params(id), initialContainer = null, knownContainers = listOf("app") to emptyList())
+        assertFalse(vm3.state.value.wrap)
+        assertFalse(vm3.state.value.showTimestamps)
     }
 }

@@ -233,8 +233,19 @@ acceptance re-green.
    tests for header, chips, and sheet gutter. Acceptance re-green
    required (no driver change needed: all new labels avoid the
    driver's exact-match targets).
-5. **Stage 5 — logs parity**: wrap toggle (+ session persistence), relative
-   timestamps in header.
+5. **Stage 5 — logs parity**: DONE 2026-11-02. `LogScreen` already had the
+   Wrap toggle (spec 05); amended here: wrap now **defaults off** and both
+   Wrap and TS toggles persist for the app **session only** via
+   `LogDisplaySession` (process-statics like `LogNavPayloads`, never
+   persisted to disk; `reset()` for tests). Header shows the newest
+   line's relative age as a muted subtitle ("last line 2m ago") under the
+   pod·namespace title via `RelativeTime.parse` (loose RFC3339, fractional
+   seconds tolerated); the subtitle is omitted when the newest line has no
+   timestamp. Q5 driver amendment: the spec05 timestamps step now toggles
+   TS back off after the follow step, so later log screens (container
+   switch, drop, 403) keep their exact unprefixed row-text asserts —
+   session persistence made the earlier TS toggle leak into those screens.
+   Acceptance re-green required.
 6. **Stage 6 — polish**: browse grid readiness pills if Q2 allows, docs
    sync (specs 04/05/08 cross-links), full acceptance + screenshot
    regeneration, store metadata wording review.
