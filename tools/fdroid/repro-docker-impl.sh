@@ -16,7 +16,7 @@ docker run --rm \
   -e KUBEDROID_REPRO_NEGATIVE="$NEGATIVE" \
   "$IMAGE" bash -lc '
     set -euo pipefail
-    cd /work
+    cd /work/kubedroid
     grep -v "^storeFile=" /secrets/orig.properties > /secrets/keystore.properties
     echo "storeFile=/secrets/release.keystore" >> /secrets/keystore.properties
     export KUBEDROID_KEYSTORE_PROPERTIES=/secrets/keystore.properties
@@ -42,5 +42,8 @@ docker run --rm \
     HB=$(sha256sum /work/repro-B.apk | cut -d" " -f1)
     echo "A=$HA"
     echo "B=$HB"
+    # The container runs as root; hand root-owned build artifacts back so the
+    # next rsync --delete from the wrapper can clean the tree.
+    chown -R 1000:1000 /work 2>/dev/null || true
     if [ "$HA" = "$HB" ]; then echo REPRO_CHECK_PASS; else echo REPRO_CHECK_FAIL; exit 1; fi
   '

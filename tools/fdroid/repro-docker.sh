@@ -31,17 +31,26 @@ REF="${KUBEDROID_REPRO_REF:-}"
 if [ -n "$REF" ]; then
   git -C "$REPO" rev-parse -q --verify "$REF^{commit}" >/dev/null \
     || { echo "REPRO_CHECK_FAIL: ref $REF not found" >&2; exit 1; }
+  # F-Droid rebuilders do a git clone of the Repo: URL, so the container
+  # tree must include .git and live under a project dir named 'kubedroid'
+  # (Gradle project name -> Kotlin module metadata -> dex layout).
+  CLONE_URL="${KUBEDROID_REPRO_CLONE_URL:-https://github.com/caseyrobb/kubedroid.git}"
   STAGE="$REPO/.repro-stage"
-  rm -rf "$STAGE" && mkdir -p "$STAGE"
-  git -C "$REPO" archive "$REF" | tar -x -C "$STAGE"
+  rm -rf "$STAGE" && mkdir -p "$STAGE/kubedroid"
+  git clone -q --no-checkout "$CLONE_URL" "$STAGE/kubedroid"
+  git -C "$STAGE/kubedroid" checkout -q --detach "$REF"
   SRC="$STAGE"
 else
   git -C "$REPO" diff --quiet && git -C "$REPO" diff --cached --quiet \
     || { echo "REPRO_CHECK_FAIL: dirty tree — commit first" >&2; exit 1; }
-  SRC="$REPO"
+  rm -rf "$REPO/.repro-stage"
+  mkdir -p "$REPO/.repro-stage/kubedroid"
+  rsync -a --exclude .git --exclude build --exclude local.properties \
+    --exclude '.gradle*' "$REPO/" "$REPO/.repro-stage/kubedroid/"
+  SRC="$REPO/.repro-stage"
 fi
 
-rsync -a --delete --exclude .git --exclude build --exclude local.properties \
+rsync -a --delete --exclude build --exclude local.properties \
   --exclude '.gradle*' "$SRC/" "$HOST:~/kubedroid-repro/"
 scp -q "$REPO/tools/fdroid/repro-docker-impl.sh" "$HOST:~/kubedroid-repro/.repro-impl.sh"
 [ -z "${STAGE:-}" ] || rm -rf "$STAGE"
