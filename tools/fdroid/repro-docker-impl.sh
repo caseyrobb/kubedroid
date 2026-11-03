@@ -20,7 +20,9 @@ docker run --rm \
     grep -v "^storeFile=" /secrets/orig.properties > /secrets/keystore.properties
     echo "storeFile=/secrets/release.keystore" >> /secrets/keystore.properties
     export KUBEDROID_KEYSTORE_PROPERTIES=/secrets/keystore.properties
-    yes | sdkmanager --sdk_root=/opt/android-sdk "platforms;android-37.0" "build-tools;36.0.0" >/dev/null 2>&1
+    # Licenses are pre-accepted in the image; no `yes` pipe (SIGPIPE on the
+    # writer trips pipefail and kills the script silently).
+    sdkmanager --sdk_root=/opt/android-sdk "platforms;android-37.0" "build-tools;36.0.0" < /dev/null
     build_leg() {
       rm -rf build
       ./gradlew --gradle-user-home /work/.gradle-agent :assembleRelease --console=plain -q

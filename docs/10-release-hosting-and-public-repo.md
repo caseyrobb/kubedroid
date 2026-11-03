@@ -112,7 +112,9 @@ Survey already done (2026-10-28, HEAD `58608be`):
   homelab-proven prerelease line.
   *Amendment (human, 2026-11-02): migration executed early — GitHub
   becomes sole source now so spec 11 (F-Droid) can proceed; the first
-  GitHub-published release is `v0.2.0` (versionCode 2).*
+  GitHub-published release is `v0.2.0` (versionCode 2), live at
+  <https://github.com/caseyrobb/kubedroid/releases/tag/v0.2.0> with the
+  signed APK + SHA256SUMS assets verified by read-back.*
 * **Q5 — F-Droid**: yes, later — now scoped as spec 11
   (`docs/11-fdroid-distribution.md`, 2026-10-28). Note: the earlier claim
   "no proprietary deps" was wrong — `com.google.mlkit:barcode-scanning` is
