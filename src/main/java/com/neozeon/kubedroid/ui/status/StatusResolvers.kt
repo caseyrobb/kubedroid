@@ -55,8 +55,11 @@ fun resolvePod(obj: Map<String, Any?>): StatusToken {
  * -> readiness token via `status.conditions`, falling back to
  * ready/desired replica comparison.
  */
-fun resolveWorkload(obj: Map<String, Any?>): StatusToken {
-    val kind = obj["kind"] as? String
+fun resolveWorkload(obj: Map<String, Any?>, fallbackKind: String? = null): StatusToken {
+    // Same fallback as resolveStatus: LIST items carry no `kind`, so
+    // Job/CronJob-specific branches would silently skip and fall into the
+    // replica-count path (which has no counts for them) -> Unknown.
+    val kind = (obj["kind"] as? String)?.takeIf { it.isNotEmpty() } ?: fallbackKind
     val spec = obj.child("spec")
     val status = obj.child("status")
 
@@ -73,29 +76,50 @@ fun resolveWorkload(obj: Map<String, Any?>): StatusToken {
         }
     }
 
-    // Condition path: Ready=True/False, Progressing reason.
+    // Condition path: Ready=True/False, Progressing reason. When neither
+    // condition is decisive (real Deployments ship Available=True +
+    // Progressing=True/NewReplicaSetAvailable and NO Ready condition on
+    // list/get), do NOT bail to Unknown — fall through to the Available +
+    // replica checks below (2026-11-03 field regression).
     val conditions = status?.list("conditions")?.mapNotNull { it.asObj() }.orEmpty()
     val ready = conditions.firstOrNull { it["type"] == "Ready" }
     val progressing = conditions.firstOrNull { it["type"] == "Progressing" }
     if (ready != null || progressing != null) {
         val readyTrue = ready?.get("status") == "True"
         val progressingReason = progressing?.get("reason") as? String
-        return when {
-            readyTrue -> WorkloadStatus.READY
-            progressingReason == "Progressing" -> WorkloadStatus.PROGRESSING
-            ready != null && !readyTrue -> {
-                if (progressingReason == "Progressing") WorkloadStatus.PROGRESSING
+        when {
+            readyTrue -> return WorkloadStatus.READY
+            progressingReason == "Progressing" -> return WorkloadStatus.PROGRESSING
+            ready != null && !readyTrue ->
+                return if (progressingReason == "Progressing") WorkloadStatus.PROGRESSING
                 else WorkloadStatus.NOT_READY
-            }
-            progressingReason == "Progressing" -> WorkloadStatus.PROGRESSING
-            else -> WorkloadStatus.UNKNOWN
+            else -> Unit // Progressing=True with a terminal reason: fall through
         }
     }
 
-    // Replica comparison fallback (some CRDs expose only counts).
+    // Available=True is the Deployment/StatefulSet health condition
+    // (kubectl's DEPLOYMENTS column is Available + Progressing).
+    if (conditions.any { it["type"] == "Available" && it["status"] == "True" }) {
+        return WorkloadStatus.READY
+    }
+
+    // Replica comparison fallback (also covers StatefulSet/DaemonSet counts).
     val desired = spec?.int("replicas")
         ?: status?.int("desiredNumberScheduled") // DaemonSet
-        ?: return WorkloadStatus.UNKNOWN
+        ?: return if (kind == "CronJob") {
+            // CronJob has no replica semantics: derive from its own
+            // conditions — Active=True means a Job is currently running;
+            // any (Suspended=False etc.) condition set with the cron
+            // controller synced means scheduled/idle.
+            when {
+                conditions.any { it["type"] == "Active" && it["status"] == "True" } ->
+                    WorkloadStatus.PROGRESSING
+                conditions.isNotEmpty() -> WorkloadStatus.READY
+                else -> WorkloadStatus.UNKNOWN
+            }
+        } else {
+            WorkloadStatus.UNKNOWN
+        }
     val readyCount = status?.int("readyReplicas")
         ?: status?.int("numberReady") // DaemonSet
         ?: status?.int("availableReplicas")
@@ -128,7 +152,7 @@ private val WORKLOAD_KINDS = setOf(
 fun resolveStatus(obj: Map<String, Any?>, fallbackKind: String? = null): StatusToken =
     when (val kind = (obj["kind"] as? String)?.takeIf { it.isNotEmpty() } ?: fallbackKind) {
         "Pod" -> resolvePod(obj)
-        in WORKLOAD_KINDS -> resolveWorkload(obj)
+        in WORKLOAD_KINDS -> resolveWorkload(obj, kind)
         else -> WorkloadStatus.UNKNOWN
     }
 

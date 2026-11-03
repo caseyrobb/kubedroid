@@ -392,9 +392,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 '"type":"Opaque","data":{"pw":"eA=="}}'
             ).encode()
         if base == "/apis/apps/v1/deployments":
+            # Live shape (2026-11-03 raw probe): Available=True +
+            # Progressing=True/NewReplicaSetAvailable, NO Ready condition.
             return 200, self._pods([
                 '{"metadata":{"name":"web","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
-                '"spec":{"replicas":2},"status":{"readyReplicas":2}}',
+                '"spec":{"replicas":2},"status":{"readyReplicas":2,"availableReplicas":2,"replicas":2,'
+                '"conditions":[{"type":"Available","status":"True","reason":"MinimumReplicasAvailable"},'
+                '{"type":"Progressing","status":"True","reason":"NewReplicaSetAvailable"}]}}',
+            ])
+        if base == "/apis/batch/v1/jobs":
+            return 200, self._pods([
+                '{"metadata":{"name":"backup","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
+                '"spec":{"parallelism":1,"completions":1},"status":{"succeeded":1}}',
+            ])
+        if base == "/apis/batch/v1/cronjobs":
+            return 200, self._pods([
+                '{"metadata":{"name":"nightly","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
+                '"spec":{"schedule":"@daily"},"status":{"conditions":[{"type":"Suspended","status":"False"}]}}',
+                '{"metadata":{"name":"hold","namespace":"web","creationTimestamp":"2026-01-01T00:00:00Z"},'
+                '"spec":{"schedule":"@hourly","suspend":true},"status":{}}',
             ])
         if base == "/api/v1/pods":
             if "continue=PAGE2" in query:

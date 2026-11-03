@@ -1206,6 +1206,43 @@ def run_app_flow(ca_b64):
     adb("shell", "input", "keyevent", "4")  # crd list -> grid (Secrets next)
     time.sleep(1)
 
+    # ---- spec 12 stage 7: workload pills on kindless list rows -----------
+    # Field regression 2026-11-03: apiserver LIST items omit kind; the
+    # Deployment/Job/CronJob pills rendered Unknown. The stub now serves
+    # these routes with kind stripped + live condition shapes.
+    def grid_scroll_to(text, up=True, timeout=25):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if has_text(text, timeout=2):
+                return True
+            if up:
+                adb("shell", "input", "swipe", "540", "500", "540", "1400", "350")
+            else:
+                adb("shell", "input", "swipe", "540", "1400", "540", "500", "350")
+            time.sleep(0.5)
+        return False
+
+    def open_kind_and_check(kind_card, row_texts, pill_descs, name):
+        found = grid_scroll_to(kind_card)
+        root = ui_dump_tree()
+        tap_where(root, text=kind_card)
+        rows_ok = all(has_text(t, timeout=20) for t in row_texts)
+        pills_ok = all(wait_node(**{"content-desc": d})[1] is not None for d in pill_descs)
+        good = found and rows_ok and pills_ok
+        step(name, good,
+             "" if good else f"(card={found} rows={rows_ok} pills={pills_ok}) "
+             + _dump_debug(ui_dump_tree()))
+        adb("shell", "input", "keyevent", "4")  # list -> grid
+        time.sleep(1)
+
+    open_kind_and_check("Deployments", ["web"], ["Ready"],
+                        "spec12-workload-deployments")
+    open_kind_and_check("Jobs", ["backup"], ["Ready"],
+                        "spec12-workload-jobs")
+    open_kind_and_check("CronJobs", ["nightly", "hold"], ["Ready", "Suspended"],
+                        "spec12-workload-cronjobs")
+    grid_scroll_to("Secrets", up=False)
+
     root, secrets_card = wait_node(text="Secrets")
     if secrets_card is not None:
         x, y = center(secrets_card)

@@ -1,0 +1,5 @@
+Follow-up fix for workload list statuses: Deployments, Jobs and CronJobs
+no longer show "Unknown". Resolvers now handle the LIST wire shape the
+API server really serves (no kind on items, Deployments reporting via
+Available/Progressing instead of Ready, Jobs via succeeded/failed counts,
+CronJobs via spec.suspend and last schedule time).

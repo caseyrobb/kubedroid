@@ -287,6 +287,19 @@ acceptance re-green.
   repository-level assertion that list rows from a kind-less list payload
   carry resolved status tokens; acceptance stub now serves list items
   WITHOUT `kind`/`apiVersion` so the chain exercises the real shape.
+- Stage 7 follow-up (2026-11-03, same amendment): Deployments/Jobs/CronJobs
+  still rendered Unknown in the field. `resolveWorkload` read `obj["kind"]`
+  itself for the Job/CronJob branches (now fallback-threaded) and its
+  condition arm bailed to Unknown when a real Deployment's conditions are
+  `Available=True + Progressing=True/<terminal reason>` with NO `Ready`
+  condition — it now falls through to the `Available`/replica checks, and
+  CronJob derives Active=True -> Progressing, synced-idle -> Ready, no
+  status -> Unknown. New `StatusTokensTest` cases mirror the live LIST
+  shapes captured via raw wire JSON. Acceptance: stub gained faithful
+  `/apis/batch/v1/jobs` + `/apis/batch/v1/cronjobs` routes and a live-shape
+  Deployment; driver steps `spec12-workload-deployments`,
+  `spec12-workload-jobs`, `spec12-workload-cronjobs` (driver amended in the
+  same commit as this spec amendment per the Q5 relax).
 
 ## Acceptance criteria
 

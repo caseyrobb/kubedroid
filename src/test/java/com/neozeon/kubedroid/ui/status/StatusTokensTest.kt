@@ -168,6 +168,80 @@ class StatusTokensTest {
         assertSame(WorkloadStatus.PROGRESSING, resolveWorkload(workload("Job")))
     }
 
+    // ---- list-shaped workloads (no kind; real-world condition shapes) ----
+    // Captured 2026-11-03 from a live cluster's raw LIST wire JSON — the
+    // exact shapes that rendered Unknown in the field.
+
+    @Test fun deploymentWithoutReadyConditionUsesAvailable() {
+        // Live shape: Available=True/MinimumReplicasAvailable +
+        // Progressing=True/NewReplicaSetAvailable, NO Ready condition.
+        val obj = mapOf(
+            "metadata" to mapOf("name" to "repo-server"),
+            "spec" to mapOf("replicas" to 1.0),
+            "status" to mapOf(
+                "readyReplicas" to 1.0, "availableReplicas" to 1.0, "replicas" to 1.0,
+                "conditions" to listOf(
+                    mapOf("type" to "Available", "status" to "True", "reason" to "MinimumReplicasAvailable"),
+                    mapOf("type" to "Progressing", "status" to "True", "reason" to "NewReplicaSetAvailable"),
+                ),
+            ),
+        )
+        assertSame(WorkloadStatus.READY, resolveStatus(obj, "Deployment"))
+    }
+
+    @Test fun deploymentAvailableFalseFallsToReplicaCounts() {
+        val obj = mapOf(
+            "spec" to mapOf("replicas" to 2.0),
+            "status" to mapOf(
+                "readyReplicas" to 0.0,
+                "conditions" to listOf(
+                    mapOf("type" to "Available", "status" to "False", "reason" to "MinimumReplicasUnavailable"),
+                    mapOf("type" to "Progressing", "status" to "True", "reason" to "ReplicaSetUpdated"),
+                ),
+            ),
+        )
+        assertSame(WorkloadStatus.NOT_READY, resolveStatus(obj, "Deployment"))
+    }
+
+    private fun kindlessJob(status: Map<String, Any?>) = mapOf(
+        "metadata" to mapOf("name" to "migrate"),
+        "spec" to mapOf("parallelism" to 1.0, "completions" to 1.0),
+        "status" to status,
+    )
+
+    @Test fun jobBranchesWorkWithoutKind() {
+        assertSame(WorkloadStatus.READY, resolveStatus(kindlessJob(mapOf("succeeded" to 1.0)), "Job"))
+        assertSame(WorkloadStatus.NOT_READY, resolveStatus(kindlessJob(mapOf("failed" to 1.0)), "Job"))
+        assertSame(WorkloadStatus.PROGRESSING, resolveStatus(kindlessJob(emptyMap()), "Job"))
+    }
+
+    @Test fun cronJobBranchesWorkWithoutKind() {
+        val suspended = mapOf("spec" to mapOf("suspend" to true))
+        assertSame(WorkloadStatus.SUSPENDED, resolveStatus(suspended, "CronJob"))
+        val running = mapOf(
+            "spec" to mapOf("schedule" to "@daily"),
+            "status" to mapOf(
+                "conditions" to listOf(
+                    mapOf("type" to "Suspended", "status" to "False"),
+                    mapOf("type" to "Active", "status" to "True"),
+                ),
+            ),
+        )
+        assertSame(WorkloadStatus.PROGRESSING, resolveStatus(running, "CronJob"))
+        val idle = mapOf(
+            "spec" to mapOf("schedule" to "@daily"),
+            "status" to mapOf(
+                "conditions" to listOf(mapOf("type" to "Suspended", "status" to "False")),
+            ),
+        )
+        assertSame(WorkloadStatus.READY, resolveStatus(idle, "CronJob"))
+        // Never synced by the controller: no conditions at all -> Unknown.
+        assertSame(
+            WorkloadStatus.UNKNOWN,
+            resolveStatus(mapOf("spec" to mapOf("schedule" to "@daily")), "CronJob"),
+        )
+    }
+
     // ---- health bucketing --------------------------------------------------
 
     @Test fun buckets() {
