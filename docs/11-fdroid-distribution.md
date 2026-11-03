@@ -101,12 +101,20 @@ Spec approved 2026-10-28 with the recommended defaults adopted:
 
 ## Dev plan
 
-Status (2026-10-28): stages 1 and 2 complete (commits `bd368cb`, `39529c5`);
-stage 3 locally verified (four from-scratch/incremental release builds all
-hash `80e6644c31481ddefec10d171632d33c78fe16dbaf17febe073f38afd137ec67`,
-cert digest matches the spec 09 pin); remaining: F-Droid builder-image
-reprotest, pending the build-host container decision. Stage 4 gated on the
-spec 10 stage 6 migration.
+Status (2026-11-02): stages 1 and 2 complete (commits `bd368cb`, `39529c5`);
+stage 3 GREEN on the build host with docker (user decision 2026-11-02):
+container A/B in the F-Droid buildserver image hashes identical
+(`81ec7b4acd522f69548399ecf6405133f77f566e4937c9eab55641c5e8c92ddc` for the
+`v0.2.0` clone), the perturbation negative control fails as required, and
+`reprotest` inside the same image reports "Reproduction successful" with
+variations `+domain_host,+user_group,+time,+build_path,+home,+umask,
++environment` (host name, users, clock, build path, HOME, env and file
+ordering proven irrelevant to the output). Host-side twin gate stays green
+(four builds `80e6644c…` pre-spec-12; `052d461a…` for v0.2.0). Cert digest
+`8aa62040…` identical across published and rebuilt APKs. See stage 3 for
+the F-Droid-asset consequence (publish container-built APKs). Stage 4
+metadata + runbook landed (`tools/fdroid/fdroiddata/`); MR submission +
+device in-place-update check pending (needs GitLab account + device).
 
 1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
    `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,
@@ -134,6 +142,23 @@ spec 10 stage 6 migration.
    Exact command:
    `KUBEDROID_BUILD_HOST=<user@buildhost> KUBEDROID_KEYSTORE_PROPERTIES=<props path on host> KUBEDROID_KEYSTORE_FILE=<keystore path on host> KUBEDROID_REPRO_REF=vX.Y.Z bash tools/fdroid/repro-docker.sh`
    (local-host twin: `tools/fdroid/repro-check.sh`).
+   FINDING (2026-11-02): the *build environment class* is load-bearing for
+   what F-Droid's rebuilders will hash. Host-toolchain builds and
+   buildserver-image builds of the same clone differ (uniform small dex
+   offset shift from toolchain/SDK layout), so a published asset built on
+   the host would be flagged non-reproducible by F-Droid. Decision:
+   publish the container-built APK as the release asset — the same image
+   class rebuilders use — via the single-leg flow
+   `tools/fdroid/fdroiddata` README / publish-leg (clone tag -> buildserver
+   image -> `publish-container.apk`); the v0.2.0 asset was replaced
+   accordingly. reprotest (inside the image, null virtual server,
+   variations `+domain_host,+user_group,+time,+build_path,+home,+umask,
+   +environment`) reports Reproduction successful; run via
+   `fdroid-work/run-reprotest2.sh`-style flow documented here:
+   `reprotest --variations=... --no-diffoscope --source-pattern '*' -s <src>
+   'sh build.sh' 'out.apk'` where build.sh is self-contained (keystore
+   props staged inside the copied source root) and networked SDK bootstrap
+   happens BEFORE reprotest (faketime must not wrap sdkmanager downloads).
    FINDING (2026-10-28): A-B builds on the build host matched on every zip
    entry (names, CRCs, timestamps) but differed in the APK Signing Block —
    AGP's `dependenciesInfo` SDKP pair (0x504b4453), a version-stamped,
@@ -159,8 +184,17 @@ spec 10 stage 6 migration.
 - Stage 2: unit tests over fastlane files (short_description <80 + no
   trailing dot, changelog present for current versionCode, screenshots
   exist and are non-empty PNGs); full 46-step acceptance suite stays green.
-- Stage 3: reprotest exit 0 for A-B and B-B; a deliberately perturbed build
-  fails reprotest (negative control).
+- Stage 3: `tools/fdroid/repro-docker.sh` (A/B hash-identity gate +
+  `KUBEDROID_REPRO_NEGATIVE=1` perturbation control that must FAIL the
+  gate) and `tools/fdroid/reprotest-docker.sh` (reprotest inside
+  `registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie` with
+  variations `+domain_host,+user_group,+time,+build_path,+home,+umask,
+  +environment`; must report "Reproduction successful"). Both were run
+  green for v0.2.0 on 2026-11-02 (A=B=`81ec7b4a…`; reprotest out.apk
+  `dbfdb985…` — differs from A/B only by reprotest's sandbox dir name,
+  which varies the Gradle root project name; the F-Droid-relevant layout
+  is the clone-dir `kubedroid` A/B hash, which is also what the published
+  container-built release asset hashes to).
 - Stage 4: acceptance criteria below; final proof is the merged fdroiddata
   MR plus an F-Droid-client install/update on the Pixel 8a.
 
