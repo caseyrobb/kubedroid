@@ -1,5 +1,5 @@
 ---
-description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout. (Amended by spec 06, which adds edit/delete actions to these surfaces; amended by spec 07, which adds dynamic CRD-discovery entries resolved through CatalogResolver.)
+description: Read-only browsing of core Kubernetes resources from the active cluster — hardcoded type catalog, generic list/search with namespace scope, resource detail with Summary and YAML tabs, redacted Secrets, adaptive list-detail layout. (Amended by spec 06, which adds edit/delete actions to these surfaces; amended by spec 07, which adds dynamic CRD-discovery entries resolved through CatalogResolver; UI of these surfaces restyled by spec 12 — status pills, health bar, chips, detail identity header, YAML quick-peek sheet.)
 status: active
 ---
 

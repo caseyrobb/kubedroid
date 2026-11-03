@@ -1,7 +1,8 @@
 kubedroid is a native Android client for browsing your own Kubernetes
 clusters. Import a kubeconfig (file or paste), pick a context, and browse
-workloads, pods, services and custom resources — with pod logs, live
-watch, YAML view and safe in-app editing behind a confirmation gate.
+workloads, pods, services and custom resources — with clear status pills,
+a fleet health bar at a glance, filter chips, pod logs, live watch, YAML
+view and safe in-app editing behind a confirmation gate.
 
 Built for homelab and self-hosted clusters: it talks directly to the API
 server you point it at, supports client certificates, tokens and basic

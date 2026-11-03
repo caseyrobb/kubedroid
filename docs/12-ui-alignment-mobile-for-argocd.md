@@ -246,9 +246,13 @@ acceptance re-green.
    switch, drop, 403) keep their exact unprefixed row-text asserts —
    session persistence made the earlier TS toggle leak into those screens.
    Acceptance re-green required.
-6. **Stage 6 — polish**: browse grid readiness pills if Q2 allows, docs
-   sync (specs 04/05/08 cross-links), full acceptance + screenshot
-   regeneration, store metadata wording review.
+6. **Stage 6 — polish**: DONE 2026-11-02. Browse-grid readiness pills
+   remain deferred (Q2: pod-like list screens only — no per-kind LIST
+   fan-out). Docs synced: specs 04/05/08 frontmatter descriptions now
+   cross-link this spec's UI layering; fastlane full description and
+   versionCode-1 changelog reworded for status pills / health bar /
+   session-persistent log toggles. Screenshots regenerated with the
+   final build (both acceptance legs green, 5/5 captured).
 
 ## Testing
 

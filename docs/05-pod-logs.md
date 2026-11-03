@@ -1,5 +1,5 @@
 ---
-description: Read-only pod log viewer — tail a pod's last 1,000 lines with follow streaming, container selector including init containers, client-side line filter, and SAF save of the complete log, riding the spec 03/04 authenticated OkHttp path.
+description: Read-only pod log viewer — tail a pod's last 1,000 lines with follow streaming, container selector including init containers, client-side line filter, and SAF save of the complete log, riding the spec 03/04 authenticated OkHttp path. (Amended by spec 12: Wrap defaults off and Wrap/TS toggles persist per app session via LogDisplaySession; newest-line relative age row.)
 status: active
 ---
 

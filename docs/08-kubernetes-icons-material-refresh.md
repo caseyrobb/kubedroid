@@ -1,5 +1,5 @@
 ---
-description: Official Kubernetes resource icons and a Material 3 Expressive refresh for browse, list, detail, and cluster screens.
+description: Official Kubernetes resource icons and a Material 3 Expressive refresh for browse, list, detail, and cluster screens. (Spec 12 layers status tokens/pills on top of this theme; M3 dynamic color and light/dark remain canonical per spec 12 Q1.)
 status: active
 ---
 
