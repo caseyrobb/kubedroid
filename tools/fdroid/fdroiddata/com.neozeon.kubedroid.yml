@@ -16,6 +16,18 @@ Builds:
     gradle:
       - :assembleRelease
     output: build/outputs/apk/release/kubedroid-release.apk
+  - versionCode: 3
+    versionName: 0.2.1
+    commit: v0.2.1
+    gradle:
+      - :assembleRelease
+    output: build/outputs/apk/release/kubedroid-release.apk
+  - versionCode: 4
+    versionName: 0.2.2
+    commit: v0.2.2
+    gradle:
+      - :assembleRelease
+    output: build/outputs/apk/release/kubedroid-release.apk
 
 Maintainer Notes:
   - Release APKs are byte-reproducible. The release signing key is
