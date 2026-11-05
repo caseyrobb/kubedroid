@@ -113,8 +113,12 @@ ordering proven irrelevant to the output). Host-side twin gate stays green
 (four builds `80e6644c…` pre-spec-12; `052d461a…` for v0.2.0). Cert digest
 `8aa62040…` identical across published and rebuilt APKs. See stage 3 for
 the F-Droid-asset consequence (publish container-built APKs). Stage 4
-metadata + runbook landed (`tools/fdroid/fdroiddata/`); MR submission +
-device in-place-update check pending (needs GitLab account + device).
+metadata + runbook landed (`tools/fdroid/fdroiddata/`). **Stage 4
+submitted 2026-11-05**: fdroiddata MR
+[fdroid/fdroiddata!55918](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55918)
+opens `metadata/com.neozeon.kubedroid.yml` (Builds for versionCode 2/3/4)
+from a fork of `caseyrobb/fdroiddata`; device in-place-update check
+pending.
 
 1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
    `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,
