@@ -1,50 +1,30 @@
 Categories:
-  - Internet
-  - Tools
+  - Connectivity
+  - Development
 License: MIT
+AuthorName: Casey Robb
 WebSite: https://github.com/caseyrobb/kubedroid
 SourceCode: https://github.com/caseyrobb/kubedroid
 IssueTracker: https://github.com/caseyrobb/kubedroid/issues
 
-Repo Type: git
+AutoName: kubedroid
+
+RepoType: git
 Repo: https://github.com/caseyrobb/kubedroid.git
+Binaries: 
+  https://github.com/caseyrobb/kubedroid/releases/download/v%v/kubedroid-release-v%v.apk
 
 Builds:
-  - versionCode: 2
-    versionName: 0.2.0
-    commit: v0.2.0
+  - versionName: 0.2.2
+    versionCode: 4
+    commit: 7138a70d609ea9d4a57ac684befae6bcc01c2325
     gradle:
-      - :assembleRelease
-    output: build/outputs/apk/release/kubedroid-release.apk
-  - versionCode: 3
-    versionName: 0.2.1
-    commit: v0.2.1
-    gradle:
-      - :assembleRelease
-    output: build/outputs/apk/release/kubedroid-release.apk
-  - versionCode: 4
-    versionName: 0.2.2
-    commit: v0.2.2
-    gradle:
-      - :assembleRelease
+      - yes
     output: build/outputs/apk/release/kubedroid-release.apk
 
-Maintainer Notes:
-  - Release APKs are byte-reproducible. The release signing key is
-    RSA-3072 with SHA256withRSA (PKCS#1 v1.5 deterministic signatures) and
-    AGP dependenciesInfo is disabled in build.gradle.kts because its
-    Play-encrypted version-stamped SDKP block is the only nondeterministic
-    part of the APK Signing Block. Two clean container builds of the tagged
-    commit hash-identically (see tools/fdroid/repro-docker.sh A/B gate),
-    and the published APK certificate digest matches rebuilds.
-  - Reproduction parity notes (verified against the
-    registry.gitlab.com/fdroid/fdroidserver buildserver-trixie image).
-    Build from a git clone of the Repo URL (AGP embeds
-    META-INF/version-control-info.textproto from the git dir) and keep the
-    project directory named kubedroid. The Gradle root project name flows
-    into Kotlin module metadata and hence the dex layout.
-  - The app requests no camera permission and ships no non-FOSS
-    dependencies (F-Droid new-app requirement, enforced in-repo by the
-    FOSS denylist gate in tools/fdroid and publish.sh).
-  - Update flow. versionCode is bumped manually per release and gated in
-    publish.sh against the previous tag. There is no in-app updater.
+AllowedAPKSigningKeys: 8aa62040e78074602176340b3bb8c46c7ceab5b8c3a9d485a5ae45dd0593acd2
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.2.2
+CurrentVersionCode: 4
