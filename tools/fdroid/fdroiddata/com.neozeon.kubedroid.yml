@@ -20,7 +20,6 @@ Builds:
     commit: 7138a70d609ea9d4a57ac684befae6bcc01c2325
     gradle:
       - yes
-    output: build/outputs/apk/release/kubedroid-release.apk
 
 AllowedAPKSigningKeys: 8aa62040e78074602176340b3bb8c46c7ceab5b8c3a9d485a5ae45dd0593acd2
 
