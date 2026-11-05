@@ -116,9 +116,15 @@ the F-Droid-asset consequence (publish container-built APKs). Stage 4
 metadata + runbook landed (`tools/fdroid/fdroiddata/`). **Stage 4
 submitted 2026-11-05**: fdroiddata MR
 [fdroid/fdroiddata!55918](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55918)
-opens `metadata/com.neozeon.kubedroid.yml` (Builds for versionCode 2/3/4)
-from a fork of `caseyrobb/fdroiddata`; device in-place-update check
-pending.
+opens `metadata/com.neozeon.kubedroid.yml` from a fork of
+`caseyrobb/fdroiddata`; device in-place-update check pending. The
+submission follows the fdroiddata CONTRIBUTING guide and Build Metadata
+Reference: single latest `Builds:` entry (versionCode 4) with full-hash
+`commit`, `RepoType`, `AuthorName`, template `gradle: [yes]`,
+`AutoUpdateMode: Version` + `UpdateCheckMode: Tags`,
+`Binaries:` + `AllowedAPKSigningKeys:` for reproducible builds, and
+rewritemeta-normalized form (maintainer notes live in the runbook README,
+not the yml — fdroid lint rejects unknown keys).
 
 1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
    `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,
