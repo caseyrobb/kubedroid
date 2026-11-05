@@ -124,7 +124,10 @@ Reference: single latest `Builds:` entry (versionCode 4) with full-hash
 `AutoUpdateMode: Version` + `UpdateCheckMode: Tags`,
 `Binaries:` + `AllowedAPKSigningKeys:` for reproducible builds, and
 rewritemeta-normalized form (maintainer notes live in the runbook README,
-not the yml — fdroid lint rejects unknown keys).
+not the yml — fdroid lint rejects unknown keys). The MR pipeline is fully
+green including `fdroid build` (the builder has no keystore, so AGP emits
+the unsigned APK — the metadata therefore uses the default output glob,
+not a pinned signed filename).
 
 1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
    `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,
