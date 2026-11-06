@@ -128,6 +128,13 @@ not the yml — fdroid lint rejects unknown keys). The MR pipeline is fully
 green including `fdroid build` (the builder has no keystore, so AGP emits
 the unsigned APK — the metadata therefore uses the default output glob,
 not a pinned signed filename).
+   *Human decision (2026-11-05): F-Droid release work is out of scope
+   going forward.* !55918 is frozen as submitted (CI green, mergeable);
+   no further pushes to it, no new MRs or issues on
+   gitlab.com/fdroid/fdroiddata, and the fdroiddata canonical copy is no
+   longer maintained per-release. Releasing continues via GitHub releases
+   only. If F-Droid ever resumes (e.g. packager questions on !55918),
+   Casey initiates.
 
 1. **Stage 1 — FOSS compliance**: denylist FOSS gate task wired into
    `publish.sh` (rejects `com.google.mlkit`, `com.google.android.gms`,

@@ -1,5 +1,11 @@
 # fdroiddata submission (spec 11 stage 4)
 
+> **OUT OF SCOPE (2026-11-05, Casey):** the F-Droid release track is
+> frozen. MR !55918 stays as submitted (CI green, mergeable) — do not
+> push to it and do not open anything else on gitlab.com/fdroid/fdroiddata.
+> This runbook and the canonical yml are kept for reference only, not
+> maintained per-release. Releases continue via GitHub only.
+
 `com.neozeon.kubedroid.yml` is the canonical copy of the file submitted to
 [fdroiddata](https://gitlab.com/fdroid/fdroiddata) under
 `metadata/com.neozeon.kubedroid.yml`. It is kept in `fdroid rewritemeta`
